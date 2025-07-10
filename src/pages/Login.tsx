@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { toast } from "sonner";
 import { UserRegistrationForm } from "@/components/UserRegistrationForm";
 import { supabase } from "@/integrations/supabase/client";
+import CryptoJS from 'crypto-js';
 
 const Login = () => {
   const router = useRouter();
@@ -42,17 +43,19 @@ const Login = () => {
         document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       });
 
-      // SHA256 해시 생성 함수
-      const sha256 = async (message: string) => {
-        const msgBuffer = new TextEncoder().encode(message);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        return hashHex;
+      // SHA256 해시 생성 함수 (crypto-js 사용)
+      const sha256 = (message: string) => {
+        try {
+          return CryptoJS.SHA256(message).toString(CryptoJS.enc.Hex);
+        } catch (error) {
+          console.error('SHA256 해시 생성 오류:', error);
+          // 오류 발생 시 에러 발생
+          throw new Error('비밀번호 해시 생성에 실패했습니다.');
+        }
       };
 
       // 입력된 비밀번호를 SHA256으로 해시화
-      const hashedPassword = await sha256(password);
+      const hashedPassword = sha256(password);
       console.log('🔐 로그인 시도 정보:');
       console.log('- 입력된 사번:', employeeId);
       console.log('- 입력된 비밀번호:', password);
