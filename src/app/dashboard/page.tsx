@@ -32,11 +32,25 @@ export default function DashboardPage() {
       const userInfo = localStorage.getItem('userInfo');
       if (userInfo) {
         const user = JSON.parse(userInfo);
-        setIsAdmin(user.role === '관리자');
-        if (user.role === '관리자') {
-          setActiveTab("dashboard");
-        } else {
-          setActiveTab("submit");
+        console.log('🔍 사용자 정보 확인:', user);
+        console.log('🔍 사용자 role:', user.role);
+        console.log('🔍 관리자 여부:', user.role === 'admin');
+        
+        const adminStatus = user.role === 'admin';
+        setIsAdmin(adminStatus);
+        
+        // URL에 tab 파라미터가 없을 때만 기본 탭 설정
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        
+        if (!tabParam) {
+          if (adminStatus) {
+            console.log('🔧 관리자로 로그인 - 대시보드 탭으로 설정');
+            setActiveTab("dashboard");
+          } else {
+            console.log('🔧 일반 사용자로 로그인 - 의견제출 탭으로 설정');
+            setActiveTab("submit");
+          }
         }
       }
     }

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Send, AlertCircle } from "lucide-react";
+import { Send, AlertCircle, Brain, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UserInfo {
@@ -17,20 +17,33 @@ interface UserInfo {
   dept?: string;
   id?: string;
   name?: string;
+  email?: string;
+  role?: string;
+  status?: string;
+}
+
+interface MakeResponse {
+  effect: string;
+  case: string;
+  nagative_score: number;
 }
 
 export const OpinionSubmissionForm = () => {
   const [formData, setFormData] = useState({
     category: "",
+    title: "",
+    suggestion: ""
+  });
+  
+  // 히든 필드들 (로그인된 사용자 정보)
+  const [userInfo, setUserInfo] = useState({
     affiliate: "",
     department: "",
     employeeId: "",
     name: "",
-    title: "",
-    currentSituation: "",
-    suggestion: "",
     quarter: "Q1" as "Q1" | "Q2" | "Q3" | "Q4"
   });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Array<{id: number, name: string}>>([]);
   const [companies, setCompanies] = useState<Array<{id: number, name: string}>>([]);
@@ -73,50 +86,132 @@ export const OpinionSubmissionForm = () => {
     fetchMasterData();
   }, []);
 
-  // localStorage에서 사용자 정보 가져오기
+  // localStorage에서 사용자 정보 가져오기 및 분기 자동 설정
   useEffect(() => {
     const userInfoStr = localStorage.getItem('userInfo');
+    
     if (userInfoStr) {
       try {
-        const userInfo: UserInfo = JSON.parse(userInfoStr);
-        setFormData(prev => ({
-          ...prev,
-          affiliate: userInfo.company || "",
-          department: userInfo.dept || "",
-          employeeId: userInfo.id || "",
-          name: userInfo.name || ""
-        }));
+        const userData: UserInfo = JSON.parse(userInfoStr);
+        
+        // 현재 분기 자동 계산
+        const currentMonth = new Date().getMonth() + 1;
+        let currentQuarter: "Q1" | "Q2" | "Q3" | "Q4" = "Q1";
+        
+        if (currentMonth >= 1 && currentMonth <= 3) currentQuarter = "Q1";
+        else if (currentMonth >= 4 && currentMonth <= 6) currentQuarter = "Q2";
+        else if (currentMonth >= 7 && currentMonth <= 9) currentQuarter = "Q3";
+        else currentQuarter = "Q4";
+        
+        const userInfoData = {
+          affiliate: userData.company || "",
+          department: userData.dept || "",
+          employeeId: userData.id || "",
+          name: userData.name || "",
+          quarter: currentQuarter
+        };
+        
+        setUserInfo(userInfoData);
+        console.log('👤 로그인된 사용자 정보 로드:', userInfoData);
       } catch (error) {
-        console.error("사용자 정보 파싱 오류:", error);
+        console.error("❌ 사용자 정보 파싱 오류:", error);
+        toast({
+          title: "⚠️ 사용자 정보 오류",
+          description: "로그인 정보가 올바르지 않습니다. 다시 로그인해주세요.",
+          variant: "destructive",
+        });
       }
+    } else {
+      console.warn("⚠️ localStorage에 사용자 정보가 없습니다.");
+      toast({
+        title: "⚠️ 로그인 필요",
+        description: "로그인이 필요합니다. 로그인 페이지로 이동합니다.",
+        variant: "destructive",
+      });
+      // 로그인 페이지로 리다이렉트
+      window.location.href = '/login';
     }
   }, []);
 
-  // 현재 분기 자동 설정
-  useEffect(() => {
-    const currentMonth = new Date().getMonth() + 1;
-    let currentQuarter: "Q1" | "Q2" | "Q3" | "Q4" = "Q1";
+  // 로그아웃 함수
+  const handleLogout = () => {
+    // localStorage와 쿠키 정리
+    localStorage.removeItem('userInfo');
     
-    if (currentMonth >= 1 && currentMonth <= 3) currentQuarter = "Q1";
-    else if (currentMonth >= 4 && currentMonth <= 6) currentQuarter = "Q2";
-    else if (currentMonth >= 7 && currentMonth <= 9) currentQuarter = "Q3";
-    else currentQuarter = "Q4";
+    // 쿠키 삭제
+    const cookies = ['company', 'dept', 'id', 'name', 'email', 'role', 'isAdmin'];
+    cookies.forEach(cookie => {
+      document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    });
     
-    setFormData(prev => ({
-      ...prev,
-      quarter: currentQuarter
-    }));
-  }, []);
+    toast({
+      title: "👋 로그아웃 완료",
+      description: "안전하게 로그아웃되었습니다.",
+    });
+    
+    // 로그인 페이지로 이동
+    window.location.href = '/login';
+  };
+
+  // Make.com AI 분석 요청
+  const requestAIAnalysis = async (opinion: string): Promise<MakeResponse | null> => {
+    try {
+      console.log('🤖 AI 분석 요청 시작:', opinion);
+      
+      const response = await fetch('https://hook.us2.make.com/2180h2521vieihld9u6oyw83m40wg77r', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          opinion: opinion
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Make.com API 오류: ${response.status}`);
+      }
+
+      const result: MakeResponse = await response.json();
+      console.log('✅ AI 분석 결과:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ AI 분석 요청 실패:', error);
+      return null;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.category || !formData.affiliate || !formData.department || 
-        !formData.employeeId || !formData.name || !formData.title ||
-        !formData.currentSituation || !formData.suggestion) {
+    console.log('🚀 의견 제출 시작');
+    console.log('📝 폼 데이터:', formData);
+    console.log('👤 사용자 정보:', userInfo);
+    console.log('📂 카테고리 목록:', categories);
+    console.log('🏢 계열사 목록:', companies);
+    
+    // 필수 항목 검증
+    if (!formData.category || !formData.title || !formData.suggestion) {
+      console.error('❌ 필수 항목 누락:', { 
+        category: formData.category, 
+        title: formData.title, 
+        suggestion: formData.suggestion 
+      });
       toast({
         title: "⚠️ 입력 오류",
-        description: "모든 필수 항목을 입력해주세요.",
+        description: "카테고리, 제목, 개선제안을 모두 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 사용자 정보 검증
+    if (!userInfo.affiliate || !userInfo.employeeId) {
+      console.error('❌ 사용자 정보 누락:', userInfo);
+      toast({
+        title: "⚠️ 사용자 정보 오류",
+        description: "로그인 정보를 확인할 수 없습니다. 다시 로그인해주세요.",
         variant: "destructive",
       });
       return;
@@ -125,29 +220,56 @@ export const OpinionSubmissionForm = () => {
     setIsSubmitting(true);
     
     try {
-      // 선택된 카테고리와 계열사의 ID 찾기
+      // 1. 선택된 카테고리와 계열사의 ID 찾기 (AI 분석 전에 검증)
       const selectedCategory = categories.find(cat => cat.name === formData.category);
-      const selectedCompany = companies.find(comp => comp.name === formData.affiliate);
+      const selectedCompany = companies.find(comp => comp.name === userInfo.affiliate);
 
-      if (!selectedCategory || !selectedCompany) {
-        throw new Error('카테고리 또는 계열사 정보를 찾을 수 없습니다.');
+      console.log('🔍 선택된 카테고리:', selectedCategory);
+      console.log('🔍 선택된 계열사:', selectedCompany);
+
+      if (!selectedCategory) {
+        throw new Error(`카테고리 '${formData.category}'를 찾을 수 없습니다. 사용 가능한 카테고리: ${categories.map(c => c.name).join(', ')}`);
+      }
+      
+      if (!selectedCompany) {
+        throw new Error(`계열사 '${userInfo.affiliate}'를 찾을 수 없습니다. 사용 가능한 계열사: ${companies.map(c => c.name).join(', ')}`);
       }
 
-      // Supabase에 의견 데이터 저장
+      // 2. AI 분석 요청 (선택사항)
+      console.log('🤖 AI 분석 요청 시작...');
+      toast({
+        title: "🤖 AI 분석 중...",
+        description: "개선제안을 AI가 분석하고 있습니다.",
+      });
+
+      let aiResult: MakeResponse | null = null;
+      try {
+        aiResult = await requestAIAnalysis(formData.suggestion);
+        console.log('✅ AI 분석 완료:', aiResult);
+      } catch (aiError) {
+        console.warn('⚠️ AI 분석 실패, 계속 진행:', aiError);
+        // AI 분석 실패해도 의견 제출은 계속 진행
+      }
+
+      // 3. Supabase에 의견 데이터 저장
       const opinionData = {
         category_id: selectedCategory.id,
         company_affiliate_id: selectedCompany.id,
-        quarter: formData.quarter,
+        quarter: userInfo.quarter,
         content: formData.title, // content 필드 추가 (제목을 content로 사용)
         title: formData.title,
-        asis: formData.currentSituation,
+        asis: null, // 현재상황은 null로 저장
         tobe: formData.suggestion,
-        user_id: formData.employeeId,
+        user_id: userInfo.employeeId,
         status: '접수',
-        reg_date: new Date().toISOString()
+        reg_date: new Date().toISOString(),
+        // AI 분석 결과 추가
+        effect: aiResult?.effect || null,
+        case_study: aiResult?.case || null,
+        negative_score: aiResult?.nagative_score || 0
       };
 
-      console.log('제출할 의견 데이터:', opinionData);
+      console.log('💾 Supabase 저장 데이터:', opinionData);
 
       const { data, error } = await supabase
         .from('opinion')
@@ -155,35 +277,32 @@ export const OpinionSubmissionForm = () => {
         .select();
 
       if (error) {
-        console.error('의견 저장 오류:', error);
-        throw error;
+        console.error('❌ Supabase 저장 오류:', error);
+        throw new Error(`데이터베이스 저장 실패: ${error.message}`);
       }
 
-      console.log('의견 저장 성공:', data);
+      console.log('✅ 의견 저장 성공:', data);
 
       toast({
         title: "✨ 의견이 성공적으로 제출되었습니다!",
-        description: "검토 후 처리 결과를 알려드리겠습니다.",
+        description: aiResult 
+          ? "AI 분석 결과와 함께 저장되었습니다. 검토 후 처리 결과를 알려드리겠습니다." 
+          : "검토 후 처리 결과를 알려드리겠습니다.",
       });
       
-      // 폼 초기화 (사용자 정보는 유지)
-      setFormData(prev => ({
+      // 폼 초기화
+      setFormData({
         category: "",
-        affiliate: prev.affiliate,
-        department: prev.department,
-        employeeId: prev.employeeId,
-        name: prev.name,
         title: "",
-        currentSituation: "",
-        suggestion: "",
-        quarter: prev.quarter
-      }));
+        suggestion: ""
+      });
 
     } catch (error) {
-      console.error("의견 제출 오류:", error);
+      console.error("❌ 의견 제출 오류:", error);
+      const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
       toast({
         title: "❌ 제출 실패",
-        description: "의견 제출 중 오류가 발생했습니다. 다시 시도해주세요.",
+        description: `의견 제출 중 오류가 발생했습니다: ${errorMessage}`,
         variant: "destructive",
       });
     } finally {
@@ -194,19 +313,52 @@ export const OpinionSubmissionForm = () => {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>의견 제출</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <Send className="h-5 w-5" />
+          의견 제출
+        </CardTitle>
         <CardDescription>
           여러분의 소중한 의견을 부담 갖지 마시고 자유롭게 등록해 주세요. 😊
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* 사용자 정보 표시 (읽기 전용) */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+            <div className="mb-3">
+              <h3 className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                </svg>
+                제출자 정보
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-1">
+                <span className="text-gray-600 text-xs">계열사</span>
+                <div className="font-medium text-gray-900">{userInfo.affiliate || '정보 없음'}</div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-gray-600 text-xs">부서</span>
+                <div className="font-medium text-gray-900">{userInfo.department || '정보 없음'}</div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-gray-600 text-xs">사번</span>
+                <div className="font-medium text-gray-900">{userInfo.employeeId || '정보 없음'}</div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-gray-600 text-xs">이름</span>
+                <div className="font-medium text-gray-900">{userInfo.name || '정보 없음'}</div>
+              </div>
+            </div>
+          </div>
+
           {/* 카테고리 선택 */}
           <div className="space-y-2">
             <Label htmlFor="category">카테고리 *</Label>
-            <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({...prev, category: value}))}>
+            <Select value={formData.category} onValueChange={(value) => setFormData({...formData, category: value})}>
               <SelectTrigger>
-                <SelectValue placeholder="카테고리를 선택해주세요" />
+                <SelectValue placeholder="카테고리를 선택하세요" />
               </SelectTrigger>
               <SelectContent>
                 {categories.map((category) => (
@@ -218,148 +370,52 @@ export const OpinionSubmissionForm = () => {
             </Select>
           </div>
 
-          {/* 계열사 & 분기 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="affiliate">계열사 *</Label>
-              <Select value={formData.affiliate} onValueChange={(value) => setFormData(prev => ({...prev, affiliate: value}))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="계열사를 선택해주세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={company.name}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quarter">분기 *</Label>
-              <Select value={formData.quarter} onValueChange={(value) => setFormData(prev => ({...prev, quarter: value as "Q1" | "Q2" | "Q3" | "Q4"}))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Q1">Q1 (1-3월)</SelectItem>
-                  <SelectItem value="Q2">Q2 (4-6월)</SelectItem>
-                  <SelectItem value="Q3">Q3 (7-9월)</SelectItem>
-                  <SelectItem value="Q4">Q4 (10-12월)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* 부서 & 사번 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="department">부서 *</Label>
-              <Input
-                id="department"
-                value={formData.department}
-                onChange={(e) => setFormData(prev => ({...prev, department: e.target.value}))}
-                placeholder="부서명을 입력해주세요"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="employeeId">사번 *</Label>
-              <Input
-                id="employeeId"
-                value={formData.employeeId}
-                onChange={(e) => setFormData(prev => ({...prev, employeeId: e.target.value}))}
-                placeholder="사번을 입력해주세요"
-                required
-              />
-            </div>
-          </div>
-
-          {/* 이름 */}
-          <div className="space-y-2">
-            <Label htmlFor="name">이름 *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
-              placeholder="이름을 입력해주세요"
-              required
-            />
-          </div>
-
           {/* 제목 */}
           <div className="space-y-2">
             <Label htmlFor="title">제목 *</Label>
             <Input
               id="title"
               value={formData.title}
-              onChange={(e) => setFormData(prev => ({...prev, title: e.target.value}))}
-              placeholder="의견 제목을 입력해주세요"
-              required
+              onChange={(e) => setFormData({...formData, title: e.target.value})}
+              placeholder="의견의 제목을 입력하세요"
+              maxLength={100}
             />
           </div>
 
-          {/* 현재 상황 */}
+          {/* 개선제안 */}
           <div className="space-y-2">
-            <Label htmlFor="currentSituation">현재 상황 (AS-IS) *</Label>
-            <Textarea
-              id="currentSituation"
-              value={formData.currentSituation}
-              onChange={(e) => setFormData(prev => ({...prev, currentSituation: e.target.value}))}
-              placeholder="현재 상황이나 문제점을 구체적으로 설명해주세요"
-              rows={4}
-              required
-            />
-          </div>
-
-          {/* 개선 제안 */}
-          <div className="space-y-2">
-            <Label htmlFor="suggestion">개선 제안 (TO-BE) *</Label>
+            <Label htmlFor="suggestion">개선제안 *</Label>
             <Textarea
               id="suggestion"
               value={formData.suggestion}
-              onChange={(e) => setFormData(prev => ({...prev, suggestion: e.target.value}))}
-              placeholder="개선 방안이나 제안사항을 구체적으로 설명해주세요"
-              rows={4}
-              required
+              onChange={(e) => setFormData({...formData, suggestion: e.target.value})}
+              placeholder="구체적인 개선제안을 입력해주세요. AI가 자동으로 기대효과와 적용사례를 분석해드립니다."
+              rows={6}
+              maxLength={2000}
             />
+            <div className="text-xs text-gray-500 text-right">
+              {formData.suggestion.length}/2000
+            </div>
           </div>
 
           {/* 제출 버튼 */}
-          <div className="pt-4">
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  제출 중...
-                </>
-              ) : (
-                <>
-                  <Send className="mr-2 h-4 w-4" />
-                  의견 제출하기
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* 안내 메시지 */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-            <div className="flex items-start">
-              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">📝 작성 가이드</p>
-                <ul className="space-y-1 text-xs">
-                  <li>• 구체적이고 실현 가능한 의견을 제시해주세요</li>
-                  <li>• 현재 상황과 개선 방안을 명확히 구분하여 작성해주세요</li>
-                  <li>• 제출된 의견은 검토 후 처리 결과를 안내드립니다</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          <Button 
+            type="submit" 
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white" 
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Brain className="mr-2 h-4 w-4 animate-spin" />
+                AI 분석 및 제출 중...
+              </>
+            ) : (
+              <>
+                <Send className="mr-2 h-4 w-4" />
+                의견 제출
+              </>
+            )}
+          </Button>
         </form>
       </CardContent>
     </Card>

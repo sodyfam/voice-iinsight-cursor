@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Search, Filter, Users as UsersIcon, Mail, Building, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { UserRegistrationForm } from "@/components/UserRegistrationForm";
 import {
   Dialog,
@@ -14,14 +15,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface User {
-  id: string;
+  employee_id: string;
   name: string;
   email: string;
-  company: string;
+  company_name: string;
   dept: string;
   role: string;
+  status: string;
+  created_at: string;
 }
 
 export const UserManagement = () => {
@@ -30,45 +34,49 @@ export const UserManagement = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Make webhook에서 사용자 데이터 가져오기
+  // Supabase에서 사용자 데이터 가져오기
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      console.log("Fetching users from webhook...");
+      console.log("Fetching users from Supabase...");
       
-      // 실제 사용자 목록 조회용 webhook URL
-      const userListWebhookUrl = "https://hook.us2.make.com/2ulqdk9j0p42t30a6x62s7urv2c6npmg";
-      
-      const response = await fetch(userListWebhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "get_users",
-          timestamp: new Date().toISOString()
-        }),
-      });
+      // Supabase에서 사용자 데이터와 계열사 정보 조회
+      const { data: usersData, error } = await supabase
+        .from('users')
+        .select(`
+          employee_id,
+          name,
+          email,
+          dept,
+          role,
+          status,
+          created_at,
+          company_affiliate:company_id (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Users loaded:", data);
-        
-        // 응답 데이터 구조에 따라 파싱
-        let userData = [];
-        if (data.json) {
-          userData = JSON.parse(data.json);
-        } else if (Array.isArray(data)) {
-          userData = data;
-        } else {
-          userData = data.users || [];
-        }
-        
-        setUsers(userData);
-      } else {
-        console.error("Failed to fetch users:", response.status);
+      if (error) {
+        console.error("Failed to fetch users:", error);
         toast.error("사용자 데이터를 불러오는 중 오류가 발생했습니다.");
+        return;
       }
+
+      // 데이터 변환
+      const transformedUsers: User[] = (usersData || []).map(user => ({
+        employee_id: user.employee_id,
+        name: user.name || '',
+        email: user.email || '',
+        company_name: (user.company_affiliate as any)?.name || '',
+        dept: user.dept || '',
+        role: user.role || 'user',
+        status: user.status || 'active',
+        created_at: user.created_at || ''
+      }));
+      
+      console.log("Users loaded:", transformedUsers);
+      setUsers(transformedUsers);
       
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -84,7 +92,7 @@ export const UserManagement = () => {
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.employee_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
@@ -94,6 +102,42 @@ export const UserManagement = () => {
     // 사용자 등록 후 목록 새로고침
     fetchUsers();
     toast.success("사용자가 성공적으로 등록되었습니다!");
+  };
+
+  // 관리자 권한 변경 함수
+  const handleAdminToggle = async (employeeId: string, isCurrentlyAdmin: boolean) => {
+    try {
+      const newRole = isCurrentlyAdmin ? 'user' : 'admin';
+      
+      console.log(`🔄 사용자 ${employeeId} 권한 변경: ${isCurrentlyAdmin ? 'admin' : 'user'} → ${newRole}`);
+      
+      const { error } = await supabase
+        .from('users')
+        .update({ role: newRole })
+        .eq('employee_id', employeeId);
+
+      if (error) {
+        console.error('❌ 권한 변경 실패:', error);
+        toast.error("권한 변경 중 오류가 발생했습니다.");
+        return;
+      }
+
+      // 로컬 상태 업데이트
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.employee_id === employeeId 
+            ? { ...user, role: newRole }
+            : user
+        )
+      );
+
+      toast.success(`${newRole === 'admin' ? '관리자 권한이 부여되었습니다.' : '관리자 권한이 해제되었습니다.'}`);
+      console.log('✅ 권한 변경 성공');
+      
+    } catch (error) {
+      console.error('💥 권한 변경 중 예상치 못한 오류:', error);
+      toast.error("권한 변경 중 예상치 못한 오류가 발생했습니다.");
+    }
   };
 
   return (
@@ -156,7 +200,7 @@ export const UserManagement = () => {
                   </div>
                 ) : (
                   filteredUsers.map((user) => (
-                    <Card key={user.id} className="border border-gray-200 hover:shadow-md transition-shadow bg-white">
+                    <Card key={user.employee_id} className="border border-gray-200 hover:shadow-md transition-shadow bg-white">
                       <CardContent className="p-3 md:p-4">
                         <div className="space-y-2 md:space-y-3">
                           {/* 상단: 아바타와 기본 정보 */}
@@ -167,9 +211,18 @@ export const UserManagement = () => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1">
                                 <h3 className="font-semibold text-gray-900 truncate text-xs md:text-sm">{user.name}</h3>
-                                {user.role === "관리자" && <span className="text-xs">⚙️</span>}
+                                <div className="flex items-center gap-1">
+                                  <Switch
+                                    checked={user.role === 'admin'}
+                                    onCheckedChange={() => handleAdminToggle(user.employee_id, user.role === 'admin')}
+                                    className="scale-75 data-[state=checked]:bg-orange-500"
+                                  />
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                                    {user.status === 'active' ? '활성' : '비활성'}
+                                  </span>
+                                </div>
                               </div>
-                              <p className="text-xs text-gray-600">사번: {user.id}</p>
+                              <p className="text-xs text-gray-600">사번: {user.employee_id}</p>
                             </div>
                           </div>
                           
@@ -181,7 +234,7 @@ export const UserManagement = () => {
                             </div>
                             <div className="flex items-center space-x-2">
                               <Building className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                              <span className="text-xs text-gray-600 truncate">{user.company}</span>
+                              <span className="text-xs text-gray-600 truncate">{user.company_name}</span>
                             </div>
                           </div>
 
@@ -212,7 +265,10 @@ export const UserManagement = () => {
               새로운 사용자를 시스템에 등록합니다.
             </DialogDescription>
           </DialogHeader>
-          <UserRegistrationForm onClose={handleUserRegistrationSuccess} />
+          <UserRegistrationForm 
+            onClose={() => setShowRegistrationDialog(false)} 
+            onSuccess={handleUserRegistrationSuccess} 
+          />
         </DialogContent>
       </Dialog>
     </>

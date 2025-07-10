@@ -92,8 +92,8 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
       // setUserInfo(userData);
       // setShowUserInfoDialog(true);
       
-      // role이 '관리자'이면 관리자 메뉴 표시
-      const adminStatus = role === '관리자';
+      // role이 'admin'이면 관리자 메뉴 표시
+      const adminStatus = role === 'admin';
       setIsAdmin(adminStatus);
       
       console.log("쿠키에서 읽은 사용자 정보:", userData);
@@ -221,7 +221,7 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
             <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-full">
               <Settings className="h-4 w-4 text-gray-600" />
               <span className="text-sm font-medium text-gray-700">
-                {userRole === '관리자' ? "관리자" : "일반사용자"}
+                {userRole === 'admin' ? "관리자" : "일반사용자"}
               </span>
             </div>
           </div>

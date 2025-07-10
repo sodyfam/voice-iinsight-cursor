@@ -17,16 +17,33 @@ interface OpinionData {
   status: string;
   reg_date: string;
   negative_score: number;
+  // 답변 관련 필드 추가
+  asis?: string;
+  effect?: string;
+  case?: string;
+  processing_content?: string;
+  proc_id?: string;
+  proc_name?: string;
+  proc_desc?: string;
 }
 
 interface SearchResultsProps {
   data: OpinionData[];
   hasSearched: boolean;
+  onUpdate?: () => void;
 }
 
-export const SearchResults = ({ data, hasSearched }: SearchResultsProps) => {
+export const SearchResults = ({ data, hasSearched, onUpdate }: SearchResultsProps) => {
   const [selectedOpinion, setSelectedOpinion] = useState<OpinionData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 날짜를 YYYY-MM-DD 형식으로 포맷하는 함수
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString; // 유효하지 않은 날짜면 원본 반환
+    return date.toISOString().split('T')[0];
+  };
 
   if (!hasSearched) {
     return null;
@@ -199,12 +216,7 @@ export const SearchResults = ({ data, hasSearched }: SearchResultsProps) => {
                       <div className="flex items-center space-x-1 text-xs text-gray-400">
                         <Calendar className="h-3 w-3" />
                         <span>
-                          {new Date(item.reg_date).toLocaleDateString('ko-KR', { 
-                            month: 'short', 
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {formatDate(item.reg_date)}
                         </span>
                       </div>
                     </div>
@@ -220,6 +232,7 @@ export const SearchResults = ({ data, hasSearched }: SearchResultsProps) => {
         opinion={selectedOpinion}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onUpdate={onUpdate}
       />
     </>
   );

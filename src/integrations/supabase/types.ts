@@ -83,6 +83,9 @@ export type Database = {
           effect: string | null
           id: number
           negative_score: number | null
+          proc_desc: string | null
+          proc_id: string | null
+          proc_name: string | null
           quarter: Database["public"]["Enums"]["quarter_enum"]
           reg_date: string | null
           seq: number
@@ -103,6 +106,9 @@ export type Database = {
           effect?: string | null
           id?: number
           negative_score?: number | null
+          proc_desc?: string | null
+          proc_id?: string | null
+          proc_name?: string | null
           quarter: Database["public"]["Enums"]["quarter_enum"]
           reg_date?: string | null
           seq?: number
@@ -123,6 +129,9 @@ export type Database = {
           effect?: string | null
           id?: number
           negative_score?: number | null
+          proc_desc?: string | null
+          proc_id?: string | null
+          proc_name?: string | null
           quarter?: Database["public"]["Enums"]["quarter_enum"]
           reg_date?: string | null
           seq?: number
@@ -218,7 +227,7 @@ export type Database = {
           email?: string | null
           employee_id: string
           id: string
-          last_login_at?: string | null
+          last_login_at: string | null
           name: string
           password_hash: string
           role?: string | null

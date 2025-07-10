@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, TrendingUp, Users, Clock, CheckCircle, AlertCircle, Building2 } from "lucide-react";
+import { MessageSquare, TrendingUp, Users, Clock, CheckCircle, AlertCircle, Building2, User, Building, Tag, Calendar, EyeOff } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -39,12 +39,12 @@ export const DashboardStats = () => {
         }
         console.log('✅ 총 의견 수:', totalOpinions);
 
-        // 2. 기본 의견 데이터 조회 (가장 기본 컬럼들만)
+        // 2. 기본 의견 데이터 조회 (등록일자 기준 최신순)
         console.log('📝 기본 의견 데이터 조회 중...');
         const { data: basicOpinions, error: basicError } = await supabase
           .from('opinion')
-          .select('id, title, status, quarter')
-          .order('id', { ascending: false });
+          .select('id, title, status, negative_score, reg_date')
+          .order('reg_date', { ascending: false });
 
         if (basicError) {
           console.error('❌ 기본 의견 데이터 조회 오류:', basicError);
@@ -144,7 +144,7 @@ export const DashboardStats = () => {
         console.log('✅ 카테고리별 분포:', categoryStats);
         console.log('✅ 계열사별 분포:', companyStats);
 
-        // 8. 최근 의견 데이터 준비 (기본 데이터만 사용)
+        // 8. 최근 의견 데이터 준비 (등록일자 기준 최신 10건)
         const recentOpinions = basicOpinions?.slice(0, 10).map((opinion, index) => ({
           ...opinion,
           category_name: categoryStats[index % categoryStats.length]?.category_name || '일반',
@@ -268,7 +268,7 @@ export const DashboardStats = () => {
     }));
   };
 
-  const displayRecentActivities = () => {
+    const displayRecentActivities = () => {
     if (!dashboardData || !dashboardData.recentOpinions?.length) {
       return (
         <div className="text-center py-8 text-gray-500">
@@ -277,40 +277,132 @@ export const DashboardStats = () => {
       );
     }
 
-    return dashboardData.recentOpinions.slice(0, 5).map((opinion) => {
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case "접수":
+        case "신규등록":
+          return "bg-blue-100 text-blue-800 border-blue-300";
+        case "처리중":
+          return "bg-yellow-100 text-yellow-800 border-yellow-300";
+        case "반려":
+          return "bg-red-100 text-red-800 border-red-300";
+        case "처리완료":
+        case "답변완료":
+          return "bg-green-100 text-green-800 border-green-300";
+        default:
+          return "bg-gray-100 text-gray-800 border-gray-300";
+      }
+    };
+
+    const getCategoryColor = (category: string) => {
+      if (category.includes('근무환경') || category.includes('시설환경')) return 'bg-orange-50 text-orange-700 border-orange-300';
+      if (category.includes('복리후생')) return 'bg-amber-50 text-amber-700 border-amber-300';
+      if (category.includes('업무개선') || category.includes('업무프로세스')) return 'bg-yellow-50 text-yellow-700 border-yellow-300';
+      if (category.includes('교육')) return 'bg-red-50 text-red-700 border-red-300';
+      if (category.includes('소통') || category.includes('조직문화')) return 'bg-pink-50 text-pink-700 border-pink-300';
+      return 'bg-gray-50 text-gray-700 border-gray-300';
+    };
+
+    const formatDate = (dateString: string) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      return date.toISOString().split('T')[0];
+    };
+
+    return dashboardData.recentOpinions.map((opinion) => {
       const companyName = opinion.company_name || '알 수 없음';
       const categoryName = opinion.category_name || '기타';
+      const isBlinded = (opinion.negative_score || 0) >= 3;
+      
+      console.log(`🔍 의견 ID ${opinion.id}: negative_score=${opinion.negative_score}, isBlinded=${isBlinded}`);
       
       return (
-        <div key={opinion.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gradient-to-r hover:from-gray-50 hover:to-orange-50 transition-all duration-200 border border-transparent hover:border-orange-100">
-          <div className="flex-shrink-0 w-2 h-2 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full mt-2 shadow-sm"></div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2 mb-1">
-              <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
-                {companyName}
-              </Badge>
-              <Badge variant="secondary" className="text-xs bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-0">
-                {getEmojiByCategory(categoryName)} {categoryName}
-              </Badge>
+        <Card 
+          key={opinion.id} 
+          className={`mb-3 transition-all duration-200 ${
+            isBlinded 
+              ? 'bg-gray-100/70 hover:bg-gray-200/70 border-gray-300 opacity-60 blur-[0.5px] cursor-default' 
+              : 'hover:shadow-md hover:border-orange-300 cursor-pointer'
+          }`}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3 flex-1">
+                <span className="text-lg">
+                  {isBlinded ? '🚫' : getEmojiByCategory(categoryName)}
+                </span>
+                <div className="flex-1">
+                  {isBlinded ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <EyeOff className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-500">
+                          AI 자동 분석 결과, 부적절한 내용이 감지되어 비공개 처리 되었습니다.
+                        </span>
+                      </div>
+                      <div className="blur-sm select-none">
+                        <h4 className="font-medium text-gray-900 text-sm">
+                          {opinion.title}
+                        </h4>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div className="flex items-center space-x-1 text-xs text-gray-500">
+                          <Building className="h-3 w-3" />
+                          <span>{companyName}</span>
+                        </div>
+                        {categoryName && (
+                          <Badge variant="outline" className={`text-xs px-2 py-0 ${getCategoryColor(categoryName)}`}>
+                            {categoryName}
+                          </Badge>
+                        )}
+                      </div>
+                      <h4 className="font-medium text-gray-900 text-sm">
+                        {opinion.title}
+                      </h4>
+                    </>
+                  )}
+                  {isBlinded && (
+                    <div className="flex items-center space-x-2 mt-2">
+                      <div className="flex items-center space-x-1 text-xs text-gray-500">
+                        <Building className="h-3 w-3" />
+                        <span className="blur-sm">
+                          {companyName}
+                        </span>
+                      </div>
+                      {categoryName && (
+                        <Badge variant="outline" className="text-xs px-2 py-0 bg-red-50 text-red-700 border-red-300">
+                          부적절한 내용
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="text-right space-y-1">
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs ${
+                    isBlinded 
+                      ? 'bg-red-50 text-red-700 border-red-300' 
+                      : getStatusColor(opinion.status || '접수')
+                  }`}
+                >
+                  {isBlinded ? '비공개' : (opinion.status || '접수')}
+                </Badge>
+                <div className="flex items-center space-x-1 text-xs text-gray-400">
+                  <Calendar className="h-3 w-3" />
+                  <span>
+                    {formatDate(opinion.reg_date)}
+                  </span>
+                </div>
+              </div>
             </div>
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {opinion.title || '제목 없음'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              최근 제출됨
-            </p>
-          </div>
-          <Badge 
-            variant={opinion.status === '처리완료' ? 'default' : 'secondary'}
-            className={`text-xs flex-shrink-0 ${
-              opinion.status === '처리완료' 
-                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-0' 
-                : 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border-0'
-            }`}
-          >
-            {opinion.status || '접수'}
-          </Badge>
-        </div>
+          </CardContent>
+        </Card>
       );
     });
   };
@@ -355,235 +447,237 @@ export const DashboardStats = () => {
     <div className="space-y-6">
       {/* 주요 통계 카드 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100 hover:shadow-xl transition-all duration-300">
+        <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-800">총 의견 수</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">총 의견 수</CardTitle>
             <div className="p-2 bg-orange-500 rounded-lg shadow-md">
               <MessageSquare className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{dashboardData.totalCnt}</div>
-            <p className="text-xs text-orange-700/70">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.totalCnt}</div>
+            <p className="text-xs text-gray-600">
               누적 제출된 의견
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-xl transition-all duration-300">
+        <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-800">참여자 수</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">참여자 수</CardTitle>
             <div className="p-2 bg-blue-500 rounded-lg shadow-md">
               <Users className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{dashboardData.userCnt}</div>
-            <p className="text-xs text-blue-700/70">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.userCnt}</div>
+            <p className="text-xs text-gray-600">
               의견을 제출한 직원
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100 hover:shadow-xl transition-all duration-300">
+        <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-800">처리 완료</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">처리 완료</CardTitle>
             <div className="p-2 bg-green-500 rounded-lg shadow-md">
               <CheckCircle className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{dashboardData.processedCnt}</div>
-            <p className="text-xs text-green-700/70">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.processedCnt}</div>
+            <p className="text-xs text-gray-600">
               처리 완료된 의견
             </p>
             <div className="mt-2">
               <Progress value={processedRate} className="h-2" />
-              <p className="text-xs text-green-700/70 mt-1">
+              <p className="text-xs text-gray-600 mt-1">
                 처리율 {processedRate}%
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-yellow-50 to-yellow-100 hover:shadow-xl transition-all duration-300">
+        <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-yellow-800">대기 중</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">대기 중</CardTitle>
             <div className="p-2 bg-yellow-500 rounded-lg shadow-md">
               <Clock className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{pendingCnt}</div>
-            <p className="text-xs text-yellow-700/70">
+            <div className="text-2xl font-bold text-gray-900">{pendingCnt}</div>
+            <p className="text-xs text-gray-600">
               처리 대기 중인 의견
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* 차트 영역 - 더 작고 컴팩트하게 */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* 카테고리별 분포 */}
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg shadow-md">
-                <TrendingUp className="h-4 w-4 text-white" />
-              </div>
-              카테고리별 분포
-            </CardTitle>
-            <CardDescription className="text-gray-600">
-              의견 유형별 제출 현황
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {dashboardData.categoryStats.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex justify-center">
-                  <ChartContainer
-                    config={{}}
-                    className="mx-auto aspect-square max-h-[180px] w-[180px]"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={processCategoryData()}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                          outerRadius={60}
-                          innerRadius={25}
-                          fill="#8884d8"
-                          dataKey="value"
-                          stroke="#fff"
-                          strokeWidth={2}
-                        >
-                          {processCategoryData().map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
+      {/* 메인 콘텐츠 영역 - 최근 의견(왼쪽) + 차트들(오른쪽) */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* 최근 의견 - 왼쪽 2/3 영역 */}
+        <div className="lg:col-span-2">
+          <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <div className="p-2 bg-gradient-to-r from-green-500 to-teal-500 rounded-lg shadow-md">
+                  <MessageSquare className="h-4 w-4 text-white" />
                 </div>
-                <div className="space-y-2">
-                  {dashboardData.categoryStats.map((item, index) => (
-                    <div key={item.category_name} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center space-x-2">
-                        <div 
-                          className="w-3 h-3 rounded-full shadow-sm" 
-                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                        ></div>
-                        <span className="text-sm font-medium">{item.category_name}</span>
-                      </div>
-                      <Badge variant="secondary" className="text-xs bg-white border">
-                        {item.count}건
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
+                최근 제출된 의견
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div>
+                {displayRecentActivities()}
               </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                카테고리 데이터가 없습니다.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* 계열사별 분포 */}
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg shadow-md">
-                <Building2 className="h-4 w-4 text-white" />
-              </div>
-              계열사별 분포
-            </CardTitle>
-            <CardDescription className="text-gray-600">
-              계열사별 의견 제출 현황
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {dashboardData.companyStats.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex justify-center">
-                  <ChartContainer
-                    config={{}}
-                    className="mx-auto aspect-square max-h-[180px] w-[180px]"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={processCompanyData()}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                          outerRadius={60}
-                          innerRadius={25}
-                          fill="#8884d8"
-                          dataKey="value"
-                          stroke="#fff"
-                          strokeWidth={2}
-                        >
-                          {processCompanyData().map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
+        {/* 차트들 - 오른쪽 1/3 영역에 위아래로 배치 */}
+        <div className="space-y-6">
+          {/* 카테고리별 분포 */}
+          <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <div className="p-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg shadow-md">
+                  <TrendingUp className="h-3.5 w-3.5 text-white" />
                 </div>
-                <div className="space-y-2">
-                  {dashboardData.companyStats.map((item, index) => (
-                    <div key={item.company_name} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center space-x-2">
-                        <div 
-                          className="w-3 h-3 rounded-full shadow-sm" 
-                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                        ></div>
-                        <span className="text-sm font-medium">{item.company_name}</span>
+                카테고리별 분포
+              </CardTitle>
+              <CardDescription className="text-sm text-gray-600">
+                의견 유형별 제출 현황
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {dashboardData.categoryStats.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex justify-center">
+                    <ChartContainer
+                      config={{}}
+                      className="mx-auto aspect-square max-h-[140px] w-[140px]"
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={processCategoryData()}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                            outerRadius={50}
+                            innerRadius={20}
+                            fill="#8884d8"
+                            dataKey="value"
+                            stroke="#fff"
+                            strokeWidth={2}
+                          >
+                            {processCategoryData().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </ChartContainer>
+                  </div>
+                  <div className="space-y-1.5">
+                    {dashboardData.categoryStats.map((item, index) => (
+                      <div key={item.category_name} className="flex items-center justify-between p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <div className="flex items-center space-x-2">
+                          <div 
+                            className="w-2.5 h-2.5 rounded-full shadow-sm" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          ></div>
+                          <span className="text-xs font-medium">{item.category_name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs bg-white border px-1.5 py-0.5">
+                          {item.count}
+                        </Badge>
                       </div>
-                      <Badge variant="secondary" className="text-xs bg-white border">
-                        {item.count}건
-                      </Badge>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                계열사 데이터가 없습니다.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  카테고리 데이터가 없습니다.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 계열사별 분포 */}
+          <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <div className="p-1.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg shadow-md">
+                  <Building2 className="h-3.5 w-3.5 text-white" />
+                </div>
+                계열사별 분포
+              </CardTitle>
+              <CardDescription className="text-sm text-gray-600">
+                계열사별 의견 제출 현황
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {dashboardData.companyStats.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex justify-center">
+                    <ChartContainer
+                      config={{}}
+                      className="mx-auto aspect-square max-h-[140px] w-[140px]"
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={processCompanyData()}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                            outerRadius={50}
+                            innerRadius={20}
+                            fill="#8884d8"
+                            dataKey="value"
+                            stroke="#fff"
+                            strokeWidth={2}
+                          >
+                            {processCompanyData().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </ChartContainer>
+                  </div>
+                  <div className="space-y-1.5">
+                    {dashboardData.companyStats.map((item, index) => (
+                      <div key={item.company_name} className="flex items-center justify-between p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <div className="flex items-center space-x-2">
+                          <div 
+                            className="w-2.5 h-2.5 rounded-full shadow-sm" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          ></div>
+                          <span className="text-xs font-medium">{item.company_name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs bg-white border px-1.5 py-0.5">
+                          {item.count}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  계열사 데이터가 없습니다.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-
-      {/* 최근 활동 */}
-      <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <div className="p-2 bg-gradient-to-r from-green-500 to-teal-500 rounded-lg shadow-md">
-              <MessageSquare className="h-4 w-4 text-white" />
-            </div>
-            최근 의견
-          </CardTitle>
-          <CardDescription className="text-gray-600">
-            최근 제출된 의견 목록
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {displayRecentActivities()}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

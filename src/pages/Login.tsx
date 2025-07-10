@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { UserRegistrationForm } from "@/components/UserRegistrationForm";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const router = useRouter();
@@ -31,78 +32,194 @@ const Login = () => {
     }
 
     try {
-      // MAKE 웹훅으로 로그인 요청
-      const webhookUrl = "https://hook.us2.make.com/keo7654bc4ppy4sp4bmve6o36v49btdw";
+      // 기존 localStorage와 쿠키 초기화
+      console.log('🧹 기존 사용자 정보 초기화 중...');
+      localStorage.removeItem('userInfo');
       
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: employeeId,
-          password: password,
-          timestamp: new Date().toISOString()
-        }),
+      // 쿠키 초기화
+      const cookies = ['company', 'dept', 'id', 'name', 'email', 'role', 'isAdmin'];
+      cookies.forEach(cookie => {
+        document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       });
 
-      const result = await response.json();
-      console.log("Login response:", result);
+      // SHA256 해시 생성 함수
+      const sha256 = async (message: string) => {
+        const msgBuffer = new TextEncoder().encode(message);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+      };
 
-      console.log("=====employeeId : ", employeeId);
-      console.log("=====result : ", result[0]);
-      
-      // 응답이 배열이고 첫 번째 요소의 id 값이 입력한 사번과 동일한지 확인
-      if (Array.isArray(result) && result.length > 0 && result[0].id && result[0].id === employeeId) {
-        const userData = result[0];
+      // 입력된 비밀번호를 SHA256으로 해시화
+      const hashedPassword = await sha256(password);
+      console.log('🔐 로그인 시도 정보:');
+      console.log('- 입력된 사번:', employeeId);
+      console.log('- 입력된 비밀번호:', password);
+      console.log('- 해시된 비밀번호:', hashedPassword);
+      console.log('- 해시 길이:', hashedPassword.length);
+
+      // 먼저 사번만으로 사용자 조회
+      console.log('🔍 1단계: 사번으로 사용자 조회');
+      const { data: userByEmployeeId, error: employeeError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('employee_id', employeeId);
+
+      console.log('- 사번 조회 결과:', userByEmployeeId);
+      console.log('- 사번 조회 오류:', employeeError);
+
+      if (!userByEmployeeId || userByEmployeeId.length === 0) {
+        toast.error("존재하지 않는 사번입니다.");
+        setIsLoading(false);
+        return;
+      }
+
+      const foundUser = userByEmployeeId[0];
+      console.log('🔍 2단계: 찾은 사용자 정보');
+      console.log('- DB 저장된 해시:', foundUser.password_hash);
+      console.log('- 입력한 해시:', hashedPassword);
+      console.log('- 해시 일치 여부:', foundUser.password_hash === hashedPassword);
+      console.log('- 사용자 상태:', foundUser.status);
+
+      // 비밀번호와 상태 확인
+      if (foundUser.password_hash !== hashedPassword) {
+        toast.error("비밀번호가 올바르지 않습니다.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (foundUser.status !== 'active') {
+        toast.error("비활성화된 계정입니다.");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('📊 Supabase 쿼리 실행 중...');
+      const { data: userDataArray, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('employee_id', employeeId)
+        .eq('password_hash', hashedPassword)
+        .eq('status', 'active');
+
+      console.log('📊 Supabase 응답:');
+      console.log('- 데이터 배열:', userDataArray);
+      console.log('- 오류:', error);
+
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : foundUser;
+      console.log('- 첫 번째 사용자 데이터:', userData);
+
+      if (error || !userData) {
+        console.error('❌ 로그인 실패 상세:');
+        console.error('- Error code:', error?.code);
+        console.error('- Error message:', error?.message);
+        console.error('- Error details:', error?.details);
+        console.error('- Error hint:', error?.hint);
         
-        // role 항목을 확인하여 관리자 여부 판단 - role 값이 '관리자'이면 관리자로 설정
-        const isAdmin = userData.role === '관리자';
+        // 사번만으로 사용자 존재 여부 확인
+        const { data: userCheck } = await supabase
+          .from('users')
+          .select('employee_id, password_hash, status')
+          .eq('employee_id', employeeId)
+          .single();
+          
+        console.log('🔍 사번 확인 결과:', userCheck);
         
-        // 브라우저 쿠키에 사용자 정보 저장
-        const userInfo = {
-          company: userData.company || "",
-          dept: userData.dept || "",
-          id: userData.id,
-          name: userData.name || "",
-          email: userData.email || "",
-          role: userData.role || "user",
-          isAdmin: isAdmin.toString()
-        };
-
-        // 쿠키에 저장 (7일 유효)
-        const expires = new Date();
-        expires.setDate(expires.getDate() + 7);
-        
-        Object.entries(userInfo).forEach(([key, value]) => {
-          document.cookie = `${key}=${encodeURIComponent(value)}; expires=${expires.toUTCString()}; path=/`;
-        });
-
-        // localStorage에 사용자 정보 저장 - 모든 필드 포함
-        const userStorageInfo = {
-          company: userData.company || "",
-          dept: userData.dept || "",
-          id: userData.id,
-          name: userData.name || "",
-          email: userData.email || "",
-          role: userData.role || "user",
-          status: userData.status || ""
-        };
-        localStorage.setItem('userInfo', JSON.stringify(userStorageInfo));
-
-        console.log("Stored user info in localStorage:", userStorageInfo);
-
-        toast.success("로그인되었습니다!");
-        
-        // 권한에 따른 페이지 이동
-        if (isAdmin) {
-          router.push("/dashboard");
-        } else {
-          router.push("/dashboard");
-        }
-      } else {
-        // 배열이 아니거나, 첫 번째 요소가 없거나, id가 입력한 사번과 다르면 로그인 실패
         toast.error("사번 또는 비밀번호가 올바르지 않습니다.");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('로그인 성공:', userData);
+
+      // Supabase에서 최신 사용자 정보 다시 조회 (권한 확인용)
+      console.log('🔄 최신 사용자 정보 조회 중...');
+      const { data: latestUserData, error: userFetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('employee_id', employeeId)
+        .single();
+
+      if (userFetchError || !latestUserData) {
+        console.error('❌ 최신 사용자 정보 조회 실패:', userFetchError);
+        toast.error("사용자 정보를 불러오는 중 오류가 발생했습니다.");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('📋 최신 사용자 정보:', latestUserData);
+
+      // 회사 정보 조회
+      let companyName = "";
+      if (latestUserData.company_id) {
+        const { data: companyData } = await supabase
+          .from('company_affiliate')
+          .select('name')
+          .eq('id', latestUserData.company_id)
+          .single();
+        companyName = companyData?.name || "";
+      }
+
+      // 최신 role 정보로 관리자 여부 판단
+      console.log('🔍 사용자 권한 확인 (최신 정보):');
+      console.log('- latestUserData.role:', latestUserData.role);
+      console.log('- typeof latestUserData.role:', typeof latestUserData.role);
+      console.log('- latestUserData.role === "admin":', latestUserData.role === 'admin');
+      
+      const isAdmin = latestUserData.role === 'admin';
+      console.log('- 최종 관리자 여부:', isAdmin);
+      
+      // 브라우저 쿠키에 최신 사용자 정보 저장
+      const userInfo = {
+        company: companyName,
+        dept: latestUserData.dept || "",
+        id: latestUserData.employee_id,
+        name: latestUserData.name || "",
+        email: latestUserData.email || "",
+        role: latestUserData.role || "user",
+        isAdmin: isAdmin.toString()
+      };
+
+      console.log('💾 쿠키에 저장할 사용자 정보:', userInfo);
+
+      // 쿠키에 저장 (7일 유효)
+      const expires = new Date();
+      expires.setDate(expires.getDate() + 7);
+      
+      Object.entries(userInfo).forEach(([key, value]) => {
+        document.cookie = `${key}=${encodeURIComponent(value)}; expires=${expires.toUTCString()}; path=/`;
+      });
+
+      // localStorage에 최신 사용자 정보 저장 - 모든 필드 포함
+      const userStorageInfo = {
+        company: companyName,
+        dept: latestUserData.dept || "",
+        id: latestUserData.employee_id,
+        name: latestUserData.name || "",
+        email: latestUserData.email || "",
+        role: latestUserData.role || "user",
+        status: latestUserData.status || ""
+      };
+      localStorage.setItem('userInfo', JSON.stringify(userStorageInfo));
+
+      console.log("💾 localStorage에 저장된 사용자 정보:", userStorageInfo);
+
+      // 마지막 로그인 시간 업데이트
+      await supabase
+        .from('users')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('employee_id', employeeId);
+
+      toast.success(`${latestUserData.name}님, 환영합니다!`);
+      
+      // 관리자와 일반 사용자에 따라 다른 페이지로 이동
+      if (isAdmin) {
+        console.log('🔧 관리자 로그인 - 대시보드로 이동');
+        router.push("/dashboard?tab=dashboard");
+      } else {
+        console.log('🔧 일반 사용자 로그인 - 의견제출로 이동');
+        router.push("/dashboard?tab=submit");
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -207,7 +324,11 @@ const Login = () => {
                     새로운 계정을 등록하세요
                   </DialogDescription>
                 </DialogHeader>
-                <UserRegistrationForm />
+                <UserRegistrationForm 
+                  onSuccess={() => {
+                    toast.success("사용자 등록이 완료되었습니다!");
+                  }}
+                />
               </DialogContent>
             </Dialog>
           </div>

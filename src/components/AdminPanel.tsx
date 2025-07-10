@@ -37,10 +37,23 @@ interface OpinionData {
   negative_score: number;
   prod_dept?: string;
   proc_desc?: string;
+  proc_id?: string;
+  proc_name?: string;
+  asis?: string;
+  effect?: string;
+  case?: string;
 }
 
 export const AdminPanel = () => {
   const { toast } = useToast();
+  
+  // 날짜를 YYYY-MM-DD 형식으로 포맷하는 함수
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString; // 유효하지 않은 날짜면 원본 반환
+    return date.toISOString().split('T')[0];
+  };
   
   const getCurrentQuarter = () => {
     const month = new Date().getMonth() + 1;
@@ -60,6 +73,11 @@ export const AdminPanel = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [opinionData, setOpinionData] = useState<OpinionData[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+
+  // 컴포넌트 마운트 시 자동 조회
+  useEffect(() => {
+    handleSearch();
+  }, []); // 빈 배열로 한 번만 실행
 
   const getQuarterDateRange = (year: string, quarter: string) => {
     const yearNum = parseInt(year);
@@ -104,7 +122,10 @@ export const AdminPanel = () => {
           updated_at,
           category_id,
           company_affiliate_id,
-          negative_score
+          negative_score,
+          proc_id,
+          proc_name,
+          proc_desc
         `)
         .gte('created_at', sDate)
         .lte('created_at', eDate + 'T23:59:59')
@@ -113,10 +134,6 @@ export const AdminPanel = () => {
       // 필터 적용
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
-      }
-      
-      if (employeeIdFilter) {
-        query = query.eq('user_id', employeeIdFilter);
       }
 
       const { data: opinionData, error: opinionError } = await query;
@@ -128,19 +145,25 @@ export const AdminPanel = () => {
 
       console.log('✅ 의견 데이터:', opinionData?.length, '개');
 
-      // 카테고리와 계열사 정보 조회
-      const [categoriesResult, companiesResult] = await Promise.all([
+      // 카테고리, 계열사, 처리이력 정보 조회
+      const [categoriesResult, companiesResult, processingHistoryResult, usersResult] = await Promise.all([
         supabase.from('category').select('id, name'),
-        supabase.from('company_affiliate').select('id, name')
+        supabase.from('company_affiliate').select('id, name'),
+        supabase.from('processing_history').select('opinion_id, processor_id, proc_desc'),
+        supabase.from('users').select('employee_id, dept')
       ]);
 
       const categories = categoriesResult.data || [];
       const companies = companiesResult.data || [];
+      const processingHistory = processingHistoryResult.data || [];
+      const users = usersResult.data || [];
 
       // 데이터 조합 및 필터링
       let enrichedOpinions = opinionData?.map(opinion => {
         const category = categories.find(c => c.id === opinion.category_id);
         const company = companies.find(c => c.id === opinion.company_affiliate_id);
+        // 답변자 정보 조회 (proc_id로)
+        const processor = opinion.proc_id ? users.find(u => u.employee_id === opinion.proc_id) : null;
         
         return {
           id: opinion.id.toString(),
@@ -152,12 +175,25 @@ export const AdminPanel = () => {
           title: opinion.title || '',
           tobe: opinion.tobe || '',
           status: opinion.status || '접수',
-          reg_date: opinion.created_at || '', // created_at을 reg_date로 매핑
+          reg_date: formatDate(opinion.created_at || ''), // created_at을 reg_date로 매핑
           negative_score: opinion.negative_score || 0,
-          prod_dept: '담당부서', // 기본값
-          proc_desc: '' // 기본값
+          prod_dept: processor?.dept || '담당부서', // 처리자 부서 정보
+          proc_desc: opinion.proc_desc || '', // opinion 테이블에서 직접 가져오기
+          proc_id: opinion.proc_id || undefined,
+          proc_name: opinion.proc_name || undefined
         };
       }) || [];
+
+      // 통합검색 필터링 (사번, 이름, 제목, 내용)
+      if (employeeIdFilter && employeeIdFilter.trim()) {
+        const searchTerm = employeeIdFilter.trim().toLowerCase();
+        enrichedOpinions = enrichedOpinions.filter(opinion => 
+          opinion.name.toLowerCase().includes(searchTerm) ||
+          opinion.id.toLowerCase().includes(searchTerm) ||
+          opinion.title.toLowerCase().includes(searchTerm) ||
+          opinion.tobe.toLowerCase().includes(searchTerm)
+        );
+      }
 
       // 추가 필터링
       if (categoryFilter !== 'all') {
@@ -217,19 +253,15 @@ export const AdminPanel = () => {
         return;
       }
 
-      // Excel 데이터 구조 정의
+      // Excel 데이터 구조 정의 (등록일, 상태, 작성자, 계열사 제외)
       const excelData = filteredData.map((item, index) => ({
         'No': index + 1,
-        '업무주관부서': item.prod_dept || '',
+        '업무주관부서': item.prod_dept || '담당부서', // 처리자의 부서정보
         '안건구분': item.category || '',
         '안건상세': item.title || '',
         '안건요청부서': item.dept || '',
         '상세내용': item.tobe || '',
-        '답변': item.proc_desc || '',
-        '등록일': item.reg_date || '',
-        '상태': item.status || '',
-        '작성자': item.name || '',
-        '계열사': item.company || ''
+        '답변': item.proc_desc || ''
       }));
 
       // 워크북 생성
@@ -244,11 +276,7 @@ export const AdminPanel = () => {
         { wch: 30 }, // 안건상세
         { wch: 15 }, // 안건요청부서
         { wch: 50 }, // 상세내용
-        { wch: 50 }, // 답변
-        { wch: 12 }, // 등록일
-        { wch: 10 }, // 상태
-        { wch: 10 }, // 작성자
-        { wch: 15 }  // 계열사
+        { wch: 50 }  // 답변
       ];
       worksheet['!cols'] = colWidths;
 
@@ -309,6 +337,7 @@ export const AdminPanel = () => {
         <SearchResults 
           data={opinionData} 
           hasSearched={hasSearched}
+          onUpdate={handleSearch}
         />
       )}
 

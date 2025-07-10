@@ -10,9 +10,10 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building, User, Hash, Tag, FileText, Lightbulb, Target, CheckCircle, EyeOff, Sparkles, Settings, Calendar } from "lucide-react";
+import { Building, User, Hash, Tag, FileText, Lightbulb, Target, CheckCircle, EyeOff, Sparkles, Settings, Calendar, Bot } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OpinionData {
   id: string;
@@ -40,9 +41,10 @@ interface OpinionDetailModalProps {
   opinion: OpinionData | null;
   isOpen: boolean;
   onClose: () => void;
+  onUpdate?: () => void;
 }
 
-export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailModalProps) => {
+export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: OpinionDetailModalProps) => {
   const [processingStatus, setProcessingStatus] = useState("");
   const [responseContent, setResponseContent] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -58,12 +60,13 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
         console.log("User info from localStorage:", user);
         console.log("User role:", user.role);
         
-        // role이 '관리자'인지 확인
-        const adminStatus = user.role === '관리자';
+        // role이 'admin'인지 확인
+        const adminStatus = user.role === 'admin';
         setIsAdmin(adminStatus);
         setCurrentUser(user);
         
         console.log("Is admin:", adminStatus);
+        console.log("User role from localStorage:", user.role);
       } catch (error) {
         console.error('Error parsing user info:', error);
       }
@@ -90,16 +93,11 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "검토중":
+      case "접수":
+        return "bg-blue-100 text-blue-800";
       case "처리중":
         return "bg-yellow-100 text-yellow-800";
-      case "보류":
-        return "bg-gray-100 text-gray-800";
-      case "반려":
-        return "bg-red-100 text-red-800";
-      case "완료":
       case "답변완료":
-      case "처리완료":
         return "bg-green-100 text-green-800";
       default:
         return "bg-gray-100 text-gray-800";
@@ -134,53 +132,55 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
     setIsSubmitting(true);
 
     try {
-      const updateData = {
-        id: opinion.id,
+      console.log("업데이트 시도 중:", {
         seq: opinion.seq,
-        name: opinion.name,
-        dept: opinion.dept,
-        company: opinion.company,
-        category: opinion.category,
-        title: opinion.title,
-        asis: opinion.asis,
-        tobe: opinion.tobe,
-        effect: opinion.effect,
-        case: opinion.case,
         status: processingStatus,
         proc_id: currentUser.id,
         proc_name: currentUser.name,
-        proc_desc: responseContent,
-        proc_date: new Date().toISOString(),
-        negative_score: opinion.negative_score,
-        reg_date: opinion.reg_date
-      };
-
-      console.log("Updating opinion with data:", updateData);
-
-      const response = await fetch("https://hook.us2.make.com/vplimw73admlz31a4qaxzj1ue3778e31", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
+        proc_desc: responseContent
       });
 
-      if (response.ok) {
-        toast.success("의견이 성공적으로 처리되었습니다.");
-        onClose();
-      } else {
-        throw new Error("서버 응답 오류");
+      // Supabase에 직접 업데이트
+      const { error } = await supabase
+        .from('opinion')
+        .update({
+          status: processingStatus,
+          proc_id: currentUser.id,
+          proc_name: currentUser.name,
+          proc_desc: responseContent,
+          updated_at: new Date().toISOString()
+        })
+        .eq('seq', opinion.seq);
+
+      if (error) {
+        console.error("Supabase 업데이트 오류:", error);
+        throw error;
       }
+
+      // 로컬 상태 업데이트
+      if (opinion) {
+        opinion.status = processingStatus;
+        opinion.proc_id = currentUser.id;
+        opinion.proc_name = currentUser.name;
+        opinion.proc_desc = responseContent;
+      }
+
+      toast.success("의견이 성공적으로 처리되었습니다.");
+      
+      // 부모 컴포넌트에 업데이트 알림
+      if (onUpdate) {
+        onUpdate();
+      }
+      
+      onClose();
     } catch (error) {
       console.error("Error updating opinion:", error);
-      toast.error("의견 처리 중 오류가 발생했습니다.");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      toast.error(`의견 처리 중 오류가 발생했습니다: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  // 일반 사용자가 처리상태/답변을 볼 수 있는 조건: 반려, 처리완료 상태일 때
-  const canViewProcessingForRegularUser = opinion.status === "반려" || opinion.status === "처리완료";
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -254,6 +254,13 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
                   {opinion.category}
                 </Badge>
               </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600">상태:</span>
+                <Badge variant="outline" className={`${getStatusColor(opinion.status)} border-current`}>
+                  {opinion.status}
+                </Badge>
+              </div>
             </CardContent>
           </Card>
 
@@ -271,13 +278,6 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
               </div>
               <Separator />
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">현재상황</h4>
-                <p className={`text-gray-700 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
-                  {opinion.asis || '현재 상황에 대한 설명이 여기에 표시됩니다.'}
-                </p>
-              </div>
-              <Separator />
-              <div>
                 <h4 className="font-medium text-gray-900 mb-2">제안사항</h4>
                 <p className={`text-gray-700 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
                   {opinion.tobe}
@@ -286,33 +286,46 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
             </CardContent>
           </Card>
 
-          {/* AI 분석 결과 */}
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center space-x-2">
-                <Sparkles className="h-5 w-5 text-blue-600" />
-                <span className="text-blue-800"> AI 분석 결과</span>
-              </CardTitle>
-            </CardHeader>
+          {/* AI 분석 답변 */}
+          <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
+                          <CardHeader>
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  <Bot className="h-5 w-5 text-indigo-600" />
+                  <span className="text-indigo-800">🧠 AI 분석 답변</span>
+                  <Badge variant="outline" className="bg-indigo-100 text-indigo-700 border-indigo-300 text-xs">
+                    자동 생성
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <h4 className="font-medium text-blue-900 mb-2 flex items-center space-x-2">
+                <h4 className="font-medium text-indigo-900 mb-2 flex items-center space-x-2">
                   <Target className="h-4 w-4" />
                   <span>기대효과</span>
                 </h4>
-                <p className={`text-blue-700 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
-                  {opinion.effect || 'AI가 분석한 이 제안의 기대효과가 여기에 표시됩니다. 업무 효율성 향상, 직원 만족도 증대, 비용 절감 등의 효과를 기대할 수 있습니다.'}
-                </p>
+                <div className="bg-white/50 rounded-lg p-3 border border-indigo-100">
+                  <p className={`text-indigo-800 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
+                    {opinion.effect || 'AI가 분석한 이 제안의 기대효과가 여기에 표시됩니다. 업무 효율성 향상, 직원 만족도 증대, 비용 절감 등의 효과를 기대할 수 있습니다.'}
+                  </p>
+                </div>
               </div>
-              <Separator className="bg-blue-200" />
+              <Separator className="bg-indigo-200" />
               <div>
-                <h4 className="font-medium text-blue-900 mb-2 flex items-center space-x-2">
+                <h4 className="font-medium text-indigo-900 mb-2 flex items-center space-x-2">
                   <Lightbulb className="h-4 w-4" />
                   <span>적용사례</span>
                 </h4>
-                <p className={`text-blue-700 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
-                  {opinion.case || 'AI가 분석한 유사한 적용사례가 여기에 표시됩니다. 타 기업이나 부서에서의 성공 사례를 참고하여 실행 방안을 제시합니다.'}
-                </p>
+                <div className="bg-white/50 rounded-lg p-3 border border-indigo-100">
+                  <p className={`text-indigo-800 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
+                    {opinion.case || 'AI가 분석한 유사한 적용사례가 여기에 표시됩니다. 타 기업이나 부서에서의 성공 사례를 참고하여 실행 방안을 제시합니다.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center pt-2">
+                <div className="flex items-center space-x-2 text-xs text-indigo-600 bg-indigo-100/50 px-3 py-1 rounded-full">
+                  <Sparkles className="h-3 w-3" />
+                  <span>AI가 의견 내용을 분석하여 자동으로 생성된 답변입니다</span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -323,7 +336,7 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2">
                   <Settings className="h-5 w-5 text-purple-600" />
-                  <span className="text-purple-800"> 관리자 처리</span>
+                  <span className="text-purple-800"> 담당자 답변</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -334,18 +347,11 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
                       <SelectValue placeholder="처리상태를 선택하세요" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="접수">접수</SelectItem>
                       <SelectItem value="처리중">처리중</SelectItem>
-                      <SelectItem value="반려">반려</SelectItem>
-                      <SelectItem value="처리완료">처리완료</SelectItem>
+                      <SelectItem value="답변완료">답변완료</SelectItem>
                     </SelectContent>
                   </Select>
-                  {processingStatus && (
-                    <div className="mt-2 text-sm text-purple-700">
-                      현재 상태: <Badge className={`${getStatusColor(processingStatus)} text-xs`}>
-                        {processingStatus}
-                      </Badge>
-                    </div>
-                  )}
                 </div>
                 <Separator className="bg-purple-200" />
                 <div>
@@ -356,11 +362,6 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
                     placeholder="답변 내용을 입력하세요..."
                     className="min-h-[100px] resize-none"
                   />
-                  {responseContent && (
-                    <div className="mt-2 text-sm text-purple-600">
-                      답변 미리보기: {responseContent.substring(0, 50)}{responseContent.length > 50 ? '...' : ''}
-                    </div>
-                  )}
                 </div>
                 <div className="flex justify-end pt-4">
                   <Button 
@@ -375,8 +376,8 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
             </Card>
           )}
 
-          {/* 일반 사용자가 볼 수 있는 처리 결과 (반려, 처리완료 상태일 때만) */}
-          {!isAdmin && canViewProcessingForRegularUser && (
+          {/* 일반 사용자가 볼 수 있는 처리 결과 (답변완료 상태일 때만) */}
+          {!isAdmin && opinion.status === "답변완료" && opinion.proc_desc && (
             <Card className="bg-gray-50 border-gray-200">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2 text-gray-800">
@@ -394,22 +395,18 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose }: OpinionDetailMo
                     {opinion.status}
                   </Badge>
                 </div>
-                {opinion.proc_desc && (
-                  <>
-                    <Separator className="bg-gray-200" />
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">답변</h4>
-                      <p className={`text-gray-700 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
-                        {opinion.proc_desc}
-                      </p>
-                      {opinion.proc_name && (
-                        <div className="mt-3 text-sm text-gray-600">
-                          처리자: {opinion.proc_name}
-                        </div>
-                      )}
+                <Separator className="bg-gray-200" />
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">답변</h4>
+                  <p className={`text-gray-700 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
+                    {opinion.proc_desc}
+                  </p>
+                  {opinion.proc_name && (
+                    <div className="mt-3 text-sm text-gray-600">
+                      처리자: {opinion.proc_name}
                     </div>
-                  </>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

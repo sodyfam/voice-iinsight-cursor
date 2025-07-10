@@ -8,7 +8,6 @@ import {
   Search,
   Calendar,
   Building,
-  Hash,
   Tag,
   CheckCircle,
   FileSpreadsheet
@@ -58,142 +57,155 @@ export const SearchFilters = ({
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Filter className="h-5 w-5" />
-          <span>검색 조건</span>
+          <span>조회조건</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {/* Year and Quarter Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Calendar className="inline h-4 w-4 mr-1" />
-              등록일
-            </label>
-            <div className="flex items-center space-x-2">
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="년도" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2024">2024년</SelectItem>
-                  <SelectItem value="2025">2025년</SelectItem>
-                  <SelectItem value="2026">2026년</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={quarter} onValueChange={setQuarter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="분기" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1분기</SelectItem>
-                  <SelectItem value="2">2분기</SelectItem>
-                  <SelectItem value="3">3분기</SelectItem>
-                  <SelectItem value="4">4분기</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* 등록일, 계열사, 카테고리, 처리상태 */}
+          <div className="flex items-end space-x-4">
+            {/* 등록일 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Calendar className="inline h-4 w-4 mr-1" />
+                등록일
+              </label>
+              <div className="flex items-center space-x-2">
+                <Select value={year} onValueChange={setYear}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue placeholder="년도" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2024">2024년</SelectItem>
+                    <SelectItem value="2025">2025년</SelectItem>
+                    <SelectItem value="2026">2026년</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={quarter} onValueChange={setQuarter}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue placeholder="분기" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Q1">1분기</SelectItem>
+                    <SelectItem value="Q2">2분기</SelectItem>
+                    <SelectItem value="Q3">3분기</SelectItem>
+                    <SelectItem value="Q4">4분기</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-          
-          {/* Filter Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Affiliate Filter */}
+
+            {/* 계열사 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Building className="inline h-4 w-4 mr-1" />
                 계열사
               </label>
               <Select value={affiliateFilter} onValueChange={setAffiliateFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="w-44">
                   <SelectValue placeholder="계열사 선택" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="본사">본사</SelectItem>
+                  <SelectItem value="계열사A">계열사A</SelectItem>
+                  <SelectItem value="계열사B">계열사B</SelectItem>
+                  <SelectItem value="오케이데이터시스템">오케이데이터시스템</SelectItem>
+                  <SelectItem value="오케이데이타시스템">오케이데이타시스템</SelectItem>
+                  <SelectItem value="전략기획팀">전략기획팀</SelectItem>
                   <SelectItem value="오케이저축은행">오케이저축은행</SelectItem>
                   <SelectItem value="오케이캐피탈">오케이캐피탈</SelectItem>
-                  <SelectItem value="오케이홀딩스">오케이홀딩스</SelectItem>
-                  <SelectItem value="오케이데이터시스템">오케이데이터시스템</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Employee ID Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Hash className="inline h-4 w-4 mr-1" />
-                사번
-              </label>
-              <Input
-                type="text"
-                value={employeeIdFilter}
-                onChange={(e) => setEmployeeIdFilter(e.target.value)}
-                placeholder="사번 입력"
-              />
-            </div>
-
-            {/* Category Filter */}
+            {/* 카테고리 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Tag className="inline h-4 w-4 mr-1" />
                 카테고리
               </label>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="w-36">
                   <SelectValue placeholder="카테고리 선택" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="근무환경 개선">근무환경 개선</SelectItem>
-                  <SelectItem value="복리후생 혁신">복리후생 혁신</SelectItem>
-                  <SelectItem value="업무 프로세스 개선">업무 프로세스 개선</SelectItem>
-                  <SelectItem value="교육/개발 제안">교육/개발 제안</SelectItem>
-                  <SelectItem value="소통/문화 변화">소통/문화 변화</SelectItem>
-                  <SelectItem value="기타 혁신 아이디어">기타 혁신 아이디어</SelectItem>
+                  <SelectItem value="업무개선">업무개선</SelectItem>
+                  <SelectItem value="복리후생">복리후생</SelectItem>
+                  <SelectItem value="시설환경">시설환경</SelectItem>
+                  <SelectItem value="교육/훈련">교육/훈련</SelectItem>
+                  <SelectItem value="조직문화">조직문화</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Status Filter */}
+            {/* 처리상태 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <CheckCircle className="inline h-4 w-4 mr-1" />
                 처리상태
               </label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="w-32">
                   <SelectValue placeholder="상태 선택" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="신규등록">신규등록</SelectItem>
+                  <SelectItem value="접수">접수</SelectItem>
                   <SelectItem value="처리중">처리중</SelectItem>
-                  <SelectItem value="반려">반려</SelectItem>
                   <SelectItem value="답변완료">답변완료</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+          
+          {/* 통합검색과 버튼들 */}
+          <div className="flex items-end space-x-4">
+            {/* 통합검색 */}
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Search className="inline h-4 w-4 mr-1" />
+                통합검색
+              </label>
+              <Input
+                type="text"
+                value={employeeIdFilter}
+                onChange={(e) => setEmployeeIdFilter(e.target.value)}
+                placeholder="사번, 이름, 제목, 내용 검색"
+                className="w-full"
+              />
+            </div>
+
+            {/* 조회 및 다운로드 버튼 */}
+            <div className="flex space-x-2">
+              <Button 
+                onClick={onSearch}
+                className="bg-orange-600 hover:bg-orange-700"
+                disabled={isLoading}
+              >
+                <Search className="h-4 w-4 mr-2" />
+                {isLoading ? "조회중..." : "조회"}
+              </Button>
+              <Button 
+                onClick={onExport}
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-50"
+                disabled={isLoading || !hasSearched}
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+          </div>
         </div>
 
-        {/* Search Button */}
-        <div className="flex items-center justify-end mt-6 space-x-2">
-          <Button 
-            onClick={onSearch}
-            className="bg-orange-600 hover:bg-orange-700"
-            disabled={isLoading}
-          >
-            <Search className="h-4 w-4 mr-2" />
-            {isLoading ? "조회중..." : "조회"}
-          </Button>
-          <Button 
-            onClick={onExport}
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50"
-            disabled={isLoading || !hasSearched}
-          >
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-        </div>
+        {/* Results Summary */}
+        {hasSearched && (
+          <div className="mt-4 text-sm text-gray-600">
+            총 {userCount}건의 의견이 조회되었습니다.
+          </div>
+        )}
       </CardContent>
     </Card>
   );
