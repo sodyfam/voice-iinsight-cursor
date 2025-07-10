@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { safeLocalStorage } from "@/lib/utils";
 
 interface AppSidebarProps {
   activeTab: string;
@@ -189,7 +190,7 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
     });
     
     // localStorage 정리
-    localStorage.removeItem('userInfo');
+    safeLocalStorage.removeItem('userInfo');
     
     toast({
       title: "로그아웃 완료",

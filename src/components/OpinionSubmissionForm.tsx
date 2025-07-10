@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Send, AlertCircle, Brain, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { safeLocalStorage } from "@/lib/utils";
 
 interface UserInfo {
   company?: string;
@@ -88,7 +89,7 @@ export const OpinionSubmissionForm = () => {
 
   // localStorage에서 사용자 정보 가져오기 및 분기 자동 설정
   useEffect(() => {
-    const userInfoStr = localStorage.getItem('userInfo');
+    const userInfoStr = safeLocalStorage.getItem('userInfo');
     
     if (userInfoStr) {
       try {
@@ -136,7 +137,7 @@ export const OpinionSubmissionForm = () => {
   // 로그아웃 함수
   const handleLogout = () => {
     // localStorage와 쿠키 정리
-    localStorage.removeItem('userInfo');
+    safeLocalStorage.removeItem('userInfo');
     
     // 쿠키 삭제
     const cookies = ['company', 'dept', 'id', 'name', 'email', 'role', 'isAdmin'];

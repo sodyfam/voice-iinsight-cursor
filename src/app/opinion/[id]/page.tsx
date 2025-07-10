@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { OpinionDetail } from '@/components/OpinionDetail'
+import { safeLocalStorage } from '@/lib/utils'
 
 export default function OpinionDetailPage({ 
   params 
@@ -20,7 +21,7 @@ export default function OpinionDetailPage({
     getParams()
     
     // 사용자 권한 확인
-    const userInfo = localStorage.getItem('userInfo')
+    const userInfo = safeLocalStorage.getItem('userInfo')
     if (userInfo) {
       const user = JSON.parse(userInfo)
       setIsAdmin(user.role === '관리자')

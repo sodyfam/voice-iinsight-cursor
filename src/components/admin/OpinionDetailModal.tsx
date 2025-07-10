@@ -14,6 +14,7 @@ import { Building, User, Hash, Tag, FileText, Lightbulb, Target, CheckCircle, Ey
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { safeLocalStorage } from "@/lib/utils";
 
 interface OpinionData {
   id: string;
@@ -53,7 +54,7 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: Opini
 
   useEffect(() => {
     // localStorage에서 사용자 정보를 읽어와서 role로 권한 확인
-    const userInfo = localStorage.getItem('userInfo');
+    const userInfo = safeLocalStorage.getItem('userInfo');
     if (userInfo) {
       try {
         const user = JSON.parse(userInfo);

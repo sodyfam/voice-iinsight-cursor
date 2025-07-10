@@ -17,6 +17,7 @@ import { OpinionList } from "@/components/OpinionList";
 import { UserManagement } from "@/components/UserManagement";
 import { OpinionDetail } from "@/components/OpinionDetail";
 import { AdminPanel } from "@/components/AdminPanel";
+import { safeLocalStorage } from "@/lib/utils";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function DashboardPage() {
   // 사용자 정보 확인 및 관리자 권한 설정
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const userInfo = localStorage.getItem('userInfo');
+      const userInfo = safeLocalStorage.getItem('userInfo');
       if (userInfo) {
         const user = JSON.parse(userInfo);
         console.log('🔍 사용자 정보 확인:', user);
@@ -81,7 +82,7 @@ export default function DashboardPage() {
       });
       
       // localStorage 삭제
-      localStorage.removeItem('userInfo');
+      safeLocalStorage.removeItem('userInfo');
     }
     
     // 로그인 페이지로 이동

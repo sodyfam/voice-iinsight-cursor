@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { UserRegistrationForm } from "@/components/UserRegistrationForm";
 import { supabase } from "@/integrations/supabase/client";
 import CryptoJS from 'crypto-js';
+import { safeLocalStorage } from "@/lib/utils";
 
 const Login = () => {
   const router = useRouter();
@@ -35,7 +36,7 @@ const Login = () => {
     try {
       // 기존 localStorage와 쿠키 초기화
       console.log('🧹 기존 사용자 정보 초기화 중...');
-      localStorage.removeItem('userInfo');
+      safeLocalStorage.removeItem('userInfo');
       
       // 쿠키 초기화
       const cookies = ['company', 'dept', 'id', 'name', 'email', 'role', 'isAdmin'];
@@ -204,7 +205,7 @@ const Login = () => {
         role: latestUserData.role || "user",
         status: latestUserData.status || ""
       };
-      localStorage.setItem('userInfo', JSON.stringify(userStorageInfo));
+      safeLocalStorage.setItem('userInfo', JSON.stringify(userStorageInfo));
 
       console.log("💾 localStorage에 저장된 사용자 정보:", userStorageInfo);
 
