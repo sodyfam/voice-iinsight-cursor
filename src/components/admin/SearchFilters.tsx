@@ -63,16 +63,16 @@ export const SearchFilters = ({
       <CardContent>
         <div className="space-y-4">
           {/* 등록일, 계열사, 카테고리, 처리상태 */}
-          <div className="flex items-end space-x-4">
+          <div className="grid grid-cols-12 gap-4 items-end">
             {/* 등록일 */}
-            <div>
+            <div className="col-span-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Calendar className="inline h-4 w-4 mr-1" />
                 등록일
               </label>
               <div className="flex items-center space-x-2">
                 <Select value={year} onValueChange={setYear}>
-                  <SelectTrigger className="w-28">
+                  <SelectTrigger className="flex-1">
                     <SelectValue placeholder="년도" />
                   </SelectTrigger>
                   <SelectContent>
@@ -82,7 +82,7 @@ export const SearchFilters = ({
                   </SelectContent>
                 </Select>
                 <Select value={quarter} onValueChange={setQuarter}>
-                  <SelectTrigger className="w-28">
+                  <SelectTrigger className="flex-1">
                     <SelectValue placeholder="분기" />
                   </SelectTrigger>
                   <SelectContent>
@@ -96,13 +96,13 @@ export const SearchFilters = ({
             </div>
 
             {/* 계열사 */}
-            <div>
+            <div className="col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Building className="inline h-4 w-4 mr-1" />
                 계열사
               </label>
               <Select value={affiliateFilter} onValueChange={setAffiliateFilter}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="계열사 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -120,13 +120,13 @@ export const SearchFilters = ({
             </div>
 
             {/* 카테고리 */}
-            <div>
+            <div className="col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Tag className="inline h-4 w-4 mr-1" />
                 카테고리
               </label>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="카테고리 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -141,13 +141,13 @@ export const SearchFilters = ({
             </div>
 
             {/* 처리상태 */}
-            <div>
+            <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <CheckCircle className="inline h-4 w-4 mr-1" />
                 처리상태
               </label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="상태 선택" />
                 </SelectTrigger>
                 <SelectContent>

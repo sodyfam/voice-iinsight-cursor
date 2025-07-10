@@ -90,12 +90,21 @@ export const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.employee_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
+  const filteredUsers = users
+    .filter(user => {
+      const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           user.employee_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      // 1. 관리자를 먼저 정렬 (admin이 user보다 앞에)
+      if (a.role === 'admin' && b.role !== 'admin') return -1;
+      if (a.role !== 'admin' && b.role === 'admin') return 1;
+      
+      // 2. 같은 역할일 때는 이름순으로 정렬
+      return a.name.localeCompare(b.name, 'ko');
+    });
 
   const handleUserRegistrationSuccess = () => {
     setShowRegistrationDialog(false);
@@ -143,10 +152,6 @@ export const UserManagement = () => {
   return (
     <>
       <div className="space-y-4 md:space-y-6 px-4 md:px-0">
-        <div className="text-left space-y-2 md:space-y-4">
-          <h2 className="text-xl md:text-2xl lg:text-4xl font-bold text-gray-900 tracking-tight">사용자 관리</h2>
-          <p className="text-base md:text-lg lg:text-xl text-gray-600">시스템 사용자를 관리합니다</p>
-        </div>
 
         <Card>
           <CardHeader className="pb-4">
