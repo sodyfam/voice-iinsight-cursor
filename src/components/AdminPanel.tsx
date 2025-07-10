@@ -41,7 +41,7 @@ interface OpinionData {
   proc_name?: string;
   asis?: string;
   effect?: string;
-  case?: string;
+  case_study?: string;
 }
 
 export const AdminPanel = () => {
@@ -115,6 +115,8 @@ export const AdminPanel = () => {
           title,
           asis,
           tobe,
+          effect,
+          case_study,
           user_id,
           status,
           quarter,
@@ -173,7 +175,10 @@ export const AdminPanel = () => {
           company: company?.name || '알 수 없음',
           category: category?.name || '기타',
           title: opinion.title || '',
+          asis: opinion.asis || undefined,
           tobe: opinion.tobe || '',
+          effect: opinion.effect || undefined,
+          case_study: opinion.case_study || undefined,
           status: opinion.status || '접수',
           reg_date: formatDate(opinion.created_at || ''), // created_at을 reg_date로 매핑
           negative_score: opinion.negative_score || 0,

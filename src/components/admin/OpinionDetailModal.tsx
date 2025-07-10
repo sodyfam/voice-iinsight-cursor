@@ -31,7 +31,7 @@ interface OpinionData {
   // Correct API response keys
   asis?: string;
   effect?: string;
-  case?: string;
+  case_study?: string;
   processing_content?: string;
   proc_id?: string;
   proc_name?: string;
@@ -77,7 +77,12 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: Opini
   useEffect(() => {
     if (opinion && isOpen) {
       // 처리상태와 답변 내용을 올바르게 설정
-      console.log("Setting initial values:", {
+      console.log("OpinionDetailModal - 받은 데이터:", {
+        id: opinion.id,
+        seq: opinion.seq,
+        title: opinion.title,
+        effect: opinion.effect,
+        case_study: opinion.case_study,
         status: opinion.status,
         proc_desc: opinion.proc_desc
       });
@@ -318,7 +323,7 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: Opini
                 </h4>
                 <div className="bg-white/50 rounded-lg p-3 border border-indigo-100">
                   <p className={`text-indigo-800 whitespace-pre-wrap ${isBlinded ? 'blur-sm' : ''}`}>
-                    {opinion.case || 'AI가 분석한 유사한 적용사례가 여기에 표시됩니다. 타 기업이나 부서에서의 성공 사례를 참고하여 실행 방안을 제시합니다.'}
+                    {opinion.case_study || 'AI가 분석한 유사한 적용사례가 여기에 표시됩니다. 타 기업이나 부서에서의 성공 사례를 참고하여 실행 방안을 제시합니다.'}
                   </p>
                 </div>
               </div>
