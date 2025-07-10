@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,11 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loginSuccessData, setLoginSuccessData] = useState<any>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,6 +249,15 @@ const Login = () => {
       router.push("/dashboard");
     }
   };
+
+  // 클라이언트 사이드에서만 렌더링
+  if (!isClient) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-orange-500">
+        <div className="text-white text-xl">로딩 중...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4">
