@@ -10,12 +10,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { UserRegistrationForm } from "@/components/UserRegistrationForm"
-import { supabase } from "@/integrations/supabase/client"
-import CryptoJS from 'crypto-js'
-import { safeLocalStorage } from "@/lib/utils"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { signIn, loading: authLoading, user } = useAuth()
   const [employeeId, setEmployeeId] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -26,6 +25,13 @@ export default function LoginPage() {
   useEffect(() => {
     setIsClient(true)
   }, [])
+
+  // 이미 로그인된 사용자는 대시보드로 리다이렉트
+  useEffect(() => {
+    if (user && !authLoading) {
+      router.push('/dashboard')
+    }
+  }, [user, authLoading, router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,119 +45,13 @@ export default function LoginPage() {
     }
 
     try {
-      // 기존 localStorage와 쿠키 초기화
-      console.log('🧹 기존 사용자 정보 초기화 중...')
-      safeLocalStorage.removeItem('userInfo')
+      const result = await signIn(employeeId, password)
       
-      // 쿠키 초기화
-      const cookies = ['company', 'dept', 'id', 'name', 'email', 'role', 'isAdmin']
-      cookies.forEach(cookie => {
-        document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
-      })
-
-      // SHA256 해시 생성 함수 (crypto-js 사용)
-      const sha256 = (message: string) => {
-        try {
-          return CryptoJS.SHA256(message).toString(CryptoJS.enc.Hex)
-        } catch (error) {
-          console.error('SHA256 해시 생성 오류:', error)
-          throw new Error('비밀번호 해시 생성에 실패했습니다.')
-        }
-      }
-
-      // 입력된 비밀번호를 SHA256으로 해시화
-      const hashedPassword = sha256(password)
-      console.log('🔐 로그인 시도 정보:', { employeeId, hashedPassword })
-
-      // 먼저 사번만으로 사용자 조회
-      const { data: userByEmployeeId, error: employeeError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('employee_id', employeeId)
-
-      if (!userByEmployeeId || userByEmployeeId.length === 0) {
-        toast.error("존재하지 않는 사번입니다.")
-        setIsLoading(false)
-        return
-      }
-
-      const foundUser = userByEmployeeId[0]
-      
-      // 비밀번호와 상태 확인
-      if (foundUser.password_hash !== hashedPassword) {
-        toast.error("비밀번호가 올바르지 않습니다.")
-        setIsLoading(false)
-        return
-      }
-
-      if (foundUser.status !== 'active') {
-        toast.error("비활성화된 계정입니다.")
-        setIsLoading(false)
-        return
-      }
-
-      console.log('로그인 성공:', foundUser)
-
-      // 회사 정보 조회
-      let companyName = ""
-      if (foundUser.company_id) {
-        const { data: companyData } = await supabase
-          .from('company_affiliate')
-          .select('name')
-          .eq('id', foundUser.company_id)
-          .single()
-        companyName = companyData?.name || ""
-      }
-
-      // 관리자 여부 판단
-      const isAdmin = foundUser.role === 'admin'
-      
-      // 브라우저 쿠키에 사용자 정보 저장
-      const userInfo = {
-        company: companyName,
-        dept: foundUser.dept || "",
-        id: foundUser.employee_id,
-        name: foundUser.name || "",
-        email: foundUser.email || "",
-        role: foundUser.role || "user",
-        isAdmin: isAdmin.toString()
-      }
-
-      // 쿠키에 저장 (7일 유효)
-      const expires = new Date()
-      expires.setDate(expires.getDate() + 7)
-      
-      Object.entries(userInfo).forEach(([key, value]) => {
-        document.cookie = `${key}=${encodeURIComponent(value)}; expires=${expires.toUTCString()}; path=/`
-      })
-
-      // localStorage에 사용자 정보 저장
-      const userStorageInfo = {
-        company: companyName,
-        dept: foundUser.dept || "",
-        id: foundUser.employee_id,
-        name: foundUser.name || "",
-        email: foundUser.email || "",
-        role: foundUser.role || "user",
-        status: foundUser.status || ""
-      }
-      safeLocalStorage.setItem('userInfo', JSON.stringify(userStorageInfo))
-
-      // 마지막 로그인 시간 업데이트
-      await supabase
-        .from('users')
-        .update({ last_login_at: new Date().toISOString() })
-        .eq('employee_id', employeeId)
-
-      toast.success(`${foundUser.name}님, 환영합니다!`)
-      
-      // 관리자와 일반 사용자에 따라 다른 페이지로 이동
-      if (isAdmin) {
-        console.log('🔧 관리자 로그인 - 대시보드로 이동')
-        router.push("/dashboard?tab=dashboard")
+      if (result.success) {
+        toast.success("로그인 성공!")
+        // AuthContext에서 사용자 정보에 따라 리다이렉트 처리
       } else {
-        console.log('🔧 일반 사용자 로그인 - 의견제출로 이동')
-        router.push("/dashboard?tab=submit")
+        toast.error(result.error || "로그인 실패")
       }
     } catch (error) {
       console.error("Login error:", error)

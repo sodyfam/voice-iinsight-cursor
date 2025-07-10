@@ -67,17 +67,17 @@ export const DashboardStats = () => {
         const userCnt = new Set(userIds?.map(item => item.user_id)).size;
         console.log('✅ 참여자 수:', userCnt);
 
-        // 4. 처리 완료된 의견 수 조회
-        console.log('⚡ 처리 완료 의견 수 조회 중...');
+        // 4. 답변 완료된 의견 수 조회
+        console.log('⚡ 답변 완료 의견 수 조회 중...');
         const { count: processedCount, error: processedError } = await supabase
           .from('opinion')
           .select('*', { count: 'exact', head: true })
-          .eq('status', '처리완료');
+          .eq('status', '답변완료');
 
         if (processedError) {
-          console.error('❌ 처리 완료 의견 수 조회 오류:', processedError);
+          console.error('❌ 답변 완료 의견 수 조회 오류:', processedError);
         }
-        console.log('✅ 처리 완료 의견 수:', processedCount);
+        console.log('✅ 답변 완료 의견 수:', processedCount);
 
         // 5. 카테고리 마스터 데이터 조회
         console.log('📂 카테고리 마스터 데이터 조회 중...');
@@ -286,7 +286,6 @@ export const DashboardStats = () => {
           return "bg-yellow-100 text-yellow-800 border-yellow-300";
         case "반려":
           return "bg-red-100 text-red-800 border-red-300";
-        case "처리완료":
         case "답변완료":
           return "bg-green-100 text-green-800 border-green-300";
         default:
@@ -479,7 +478,7 @@ export const DashboardStats = () => {
 
         <Card className="bg-white border shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-700">처리 완료</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">답변 완료</CardTitle>
             <div className="p-2 bg-green-500 rounded-lg shadow-md">
               <CheckCircle className="h-4 w-4 text-white" />
             </div>
@@ -487,12 +486,15 @@ export const DashboardStats = () => {
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">{dashboardData.processedCnt}</div>
             <p className="text-xs text-gray-600">
-              처리 완료된 의견
+              답변 완료된 의견
             </p>
             <div className="mt-2">
-              <Progress value={processedRate} className="h-2" />
+              <Progress 
+                value={processedRate} 
+                className="h-2 [&>div]:bg-green-500" 
+              />
               <p className="text-xs text-gray-600 mt-1">
-                처리율 {processedRate}%
+                답변률 {processedRate}%
               </p>
             </div>
           </CardContent>
@@ -508,7 +510,7 @@ export const DashboardStats = () => {
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">{pendingCnt}</div>
             <p className="text-xs text-gray-600">
-              처리 대기 중인 의견
+              답변 대기 중인 의견
             </p>
           </CardContent>
         </Card>
