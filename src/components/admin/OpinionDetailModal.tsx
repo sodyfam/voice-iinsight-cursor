@@ -14,7 +14,7 @@ import { Building, User, Hash, Tag, FileText, Lightbulb, Target, CheckCircle, Ey
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { safeLocalStorage } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface OpinionData {
   id: string;
@@ -46,33 +46,12 @@ interface OpinionDetailModalProps {
 }
 
 export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: OpinionDetailModalProps) => {
+  const { userProfile } = useAuth();
   const [processingStatus, setProcessingStatus] = useState("");
   const [responseContent, setResponseContent] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    // localStorage에서 사용자 정보를 읽어와서 role로 권한 확인
-    const userInfo = safeLocalStorage.getItem('userInfo');
-    if (userInfo) {
-      try {
-        const user = JSON.parse(userInfo);
-        console.log("User info from localStorage:", user);
-        console.log("User role:", user.role);
-        
-        // role이 'admin'인지 확인
-        const adminStatus = user.role === 'admin';
-        setIsAdmin(adminStatus);
-        setCurrentUser(user);
-        
-        console.log("Is admin:", adminStatus);
-        console.log("User role from localStorage:", user.role);
-      } catch (error) {
-        console.error('Error parsing user info:', error);
-      }
-    }
-  }, []);
+  const isAdmin = userProfile?.role === 'admin';
 
   useEffect(() => {
     if (opinion && isOpen) {
@@ -120,7 +99,7 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: Opini
   };
 
   const handleSubmit = async () => {
-    if (!isAdmin || !currentUser) {
+    if (!isAdmin || !userProfile) {
       toast.error("관리자 권한이 필요합니다.");
       return;
     }
@@ -141,8 +120,8 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: Opini
       console.log("업데이트 시도 중:", {
         seq: opinion.seq,
         status: processingStatus,
-        proc_id: currentUser.id,
-        proc_name: currentUser.name,
+        proc_id: userProfile.employee_id,
+        proc_name: userProfile.name,
         proc_desc: responseContent
       });
 
@@ -151,8 +130,8 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: Opini
         .from('opinion')
         .update({
           status: processingStatus,
-          proc_id: currentUser.id,
-          proc_name: currentUser.name,
+          proc_id: userProfile.employee_id,
+          proc_name: userProfile.name,
           proc_desc: responseContent,
           updated_at: new Date().toISOString()
         })
@@ -166,8 +145,8 @@ export const OpinionDetailModal = ({ opinion, isOpen, onClose, onUpdate }: Opini
       // 로컬 상태 업데이트
       if (opinion) {
         opinion.status = processingStatus;
-        opinion.proc_id = currentUser.id;
-        opinion.proc_name = currentUser.name;
+        opinion.proc_id = userProfile.employee_id;
+        opinion.proc_name = userProfile.name;
         opinion.proc_desc = responseContent;
       }
 

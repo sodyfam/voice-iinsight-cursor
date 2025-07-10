@@ -147,31 +147,31 @@ export const AdminPanel = () => {
 
       console.log('✅ 의견 데이터:', opinionData?.length, '개');
 
-      // 카테고리, 계열사, 처리이력 정보 조회
-      const [categoriesResult, companiesResult, processingHistoryResult, usersResult] = await Promise.all([
+      // 카테고리, 계열사, 사용자 정보 조회
+      const [categoriesResult, companiesResult, usersResult] = await Promise.all([
         supabase.from('category').select('id, name'),
         supabase.from('company_affiliate').select('id, name'),
-        supabase.from('processing_history').select('opinion_id, processor_id, proc_desc'),
         supabase.from('users').select('employee_id, dept')
       ]);
 
       const categories = categoriesResult.data || [];
       const companies = companiesResult.data || [];
-      const processingHistory = processingHistoryResult.data || [];
       const users = usersResult.data || [];
 
       // 데이터 조합 및 필터링
       let enrichedOpinions = opinionData?.map(opinion => {
         const category = categories.find(c => c.id === opinion.category_id);
         const company = companies.find(c => c.id === opinion.company_affiliate_id);
-        // 답변자 정보 조회 (proc_id로)
+        // 업무주관부서: proc_id로 조회
         const processor = opinion.proc_id ? users.find(u => u.employee_id === opinion.proc_id) : null;
+        // 안건요청부서: user_id로 조회
+        const requestUser = opinion.user_id ? users.find(u => u.employee_id === opinion.user_id) : null;
         
         return {
           id: opinion.id.toString(),
           seq: opinion.seq || opinion.id,
           name: (opinion.user_id || '익명') as string, // 타입 단언으로 string 보장
-          dept: '부서명', // 기본값 (실제로는 사용자 테이블과 조인해야 함)
+          dept: requestUser?.dept || '', // 안건요청부서 (user_id의 부서)
           company: company?.name || '알 수 없음',
           category: category?.name || '기타',
           title: opinion.title || '',
@@ -182,7 +182,7 @@ export const AdminPanel = () => {
           status: opinion.status || '접수',
           reg_date: formatDate(opinion.created_at || ''), // created_at을 reg_date로 매핑
           negative_score: opinion.negative_score || 0,
-          prod_dept: processor?.dept || '담당부서', // 처리자 부서 정보
+          prod_dept: processor?.dept || '', // 업무주관부서 (proc_id의 부서)
           proc_desc: opinion.proc_desc || '', // opinion 테이블에서 직접 가져오기
           proc_id: opinion.proc_id || undefined,
           proc_name: opinion.proc_name || undefined
@@ -261,10 +261,10 @@ export const AdminPanel = () => {
       // Excel 데이터 구조 정의 (등록일, 상태, 작성자, 계열사 제외)
       const excelData = filteredData.map((item, index) => ({
         'No': index + 1,
-        '업무주관부서': item.prod_dept || '담당부서', // 처리자의 부서정보
+        '업무주관부서': item.prod_dept || '', // proc_id의 부서정보 (없으면 빈칸)
         '안건구분': item.category || '',
         '안건상세': item.title || '',
-        '안건요청부서': item.dept || '',
+        '안건요청부서': item.dept || '', // user_id의 부서정보
         '상세내용': item.tobe || '',
         '답변': item.proc_desc || ''
       }));

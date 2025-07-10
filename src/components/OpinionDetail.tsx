@@ -194,7 +194,7 @@ export const OpinionDetail = ({ opinionId, isAdmin }: OpinionDetailProps) => {
       case "검토중":
       case "처리중":
         return "bg-yellow-100 text-yellow-800";
-      case "처리완료":
+              case "답변완료":
       case "답변완료":
         return "bg-green-100 text-green-800";
       case "보류":
@@ -462,8 +462,7 @@ export const OpinionDetail = ({ opinionId, isAdmin }: OpinionDetailProps) => {
                           <SelectItem value="접수">접수</SelectItem>
                           <SelectItem value="검토중">검토중</SelectItem>
                           <SelectItem value="처리중">처리중</SelectItem>
-                          <SelectItem value="처리완료">처리완료</SelectItem>
-                          <SelectItem value="답변완료">답변완료</SelectItem>
+                                                      <SelectItem value="답변완료">답변완료</SelectItem>
                           <SelectItem value="보류">보류</SelectItem>
                           <SelectItem value="반려">반려</SelectItem>
                         </SelectContent>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 
 // 동적 렌더링 강제
 export const dynamic = 'force-dynamic';
@@ -17,45 +17,41 @@ import { OpinionList } from "@/components/OpinionList";
 import { UserManagement } from "@/components/UserManagement";
 import { OpinionDetail } from "@/components/OpinionDetail";
 import { AdminPanel } from "@/components/AdminPanel";
-import { safeLocalStorage } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, userProfile, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("submit");
-  const [isAdmin, setIsAdmin] = useState(false);
   const [selectedOpinionId, setSelectedOpinionId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 사용자 정보 확인 및 관리자 권한 설정
+  const isAdmin = userProfile?.role === 'admin';
+
+  // 인증되지 않은 사용자 리다이렉트
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const userInfo = safeLocalStorage.getItem('userInfo');
-      if (userInfo) {
-        const user = JSON.parse(userInfo);
-        console.log('🔍 사용자 정보 확인:', user);
-        console.log('🔍 사용자 role:', user.role);
-        console.log('🔍 관리자 여부:', user.role === 'admin');
-        
-        const adminStatus = user.role === 'admin';
-        setIsAdmin(adminStatus);
-        
-        // URL에 tab 파라미터가 없을 때만 기본 탭 설정
-        const urlParams = new URLSearchParams(window.location.search);
-        const tabParam = urlParams.get('tab');
-        
-        if (!tabParam) {
-          if (adminStatus) {
-            console.log('🔧 관리자로 로그인 - 대시보드 탭으로 설정');
-            setActiveTab("dashboard");
-          } else {
-            console.log('🔧 일반 사용자로 로그인 - 의견제출 탭으로 설정');
-            setActiveTab("submit");
-          }
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  // 사용자 정보에 따른 기본 탭 설정
+  useEffect(() => {
+    if (userProfile) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      
+      if (!tabParam) {
+        if (userProfile.role === 'admin') {
+          setActiveTab("dashboard");
+        } else {
+          setActiveTab("submit");
         }
       }
     }
-  }, []);
+  }, [userProfile]);
 
   // URL 쿼리 파라미터 처리
   useEffect(() => {
@@ -73,19 +69,8 @@ export default function DashboardPage() {
     }
   }, [searchParams]);
 
-  const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      // 쿠키 삭제
-      const cookies = ['company', 'dept', 'id', 'name', 'email', 'role', 'isAdmin'];
-      cookies.forEach(cookie => {
-        document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      });
-      
-      // localStorage 삭제
-      safeLocalStorage.removeItem('userInfo');
-    }
-    
-    // 로그인 페이지로 이동
+  const handleLogout = async () => {
+    await signOut();
     router.push('/login');
   };
 
@@ -103,9 +88,10 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Top Navigation */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-white">
+        {/* Top Navigation */}
+        <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 md:h-16">
             <div className="flex items-center">
@@ -274,6 +260,22 @@ export default function DashboardPage() {
           <OpinionDetail opinionId={selectedOpinionId} isAdmin={isAdmin} />
         )}
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 } 

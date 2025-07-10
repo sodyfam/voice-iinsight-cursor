@@ -30,7 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { safeLocalStorage } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AppSidebarProps {
   activeTab: string;
@@ -40,11 +40,10 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: AppSidebarProps) {
+  const { userProfile, signOut } = useAuth();
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showUserInfoDialog, setShowUserInfoDialog] = useState(false);
   const [password, setPassword] = useState("");
-  const [userInfo, setUserInfo] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string>("");
   const { toast } = useToast();
   const router = useRouter();
   const { setOpenMobile } = useSidebar();
@@ -52,55 +51,16 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
 
   const adminPassword = "admin123";
 
-  // 쿠키에서 사용자 정보를 읽어와서 역할 확인 및 팝업 표시
+  // useAuth로 사용자 정보 확인
   useEffect(() => {
-    const getCookie = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) {
-        const cookieValue = parts.pop()?.split(';').shift() || '';
-        try {
-          // URL 디코딩을 시도
-          return decodeURIComponent(cookieValue);
-        } catch (error) {
-          // 디코딩 실패시 원본 값 반환
-          return cookieValue;
-        }
-      }
-      return null;
-    };
-
-    // 쿠키에서 사용자 정보 읽기
-    const company = getCookie('company');
-    const id = getCookie('id');
-    const name = getCookie('name');
-    const dept = getCookie('dept');
-    const role = getCookie('role');
-
-    // 사용자 권한 정보 설정
-    setUserRole(role || '');
-
-    // 사용자 정보가 있으면 팝업 표시 - 주석 처리
-    if (id && name) {
-      const userData = {
-        company: company || '',
-        id: id || '',
-        name: name || '',
-        dept: dept || '',
-        role: role || ''
-      };
-      
-      // setUserInfo(userData);
-      // setShowUserInfoDialog(true);
-      
-      // role이 'admin'이면 관리자 메뉴 표시
-      const adminStatus = role === 'admin';
+    if (userProfile) {
+      const adminStatus = userProfile.role === 'admin';
       setIsAdmin(adminStatus);
       
-      console.log("쿠키에서 읽은 사용자 정보:", userData);
+      console.log("Auth에서 가져온 사용자 정보:", userProfile);
       console.log("관리자 여부:", adminStatus);
     }
-  }, [setIsAdmin]);
+  }, [userProfile, setIsAdmin]);
 
   // 모든 메뉴 아이템 (권한 상관없이 모두 표시)
   const allMenuItems = [
@@ -126,7 +86,7 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
     },
   ];
 
-  // 쿠키에서 사용자 정보 가져오기
+  // 쿠키에서 사용자 정보 가져오기 (deprecated)
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -182,23 +142,13 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
     setShowUserInfoDialog(false);
   };
 
-  const handleLogout = () => {
-    // 모든 쿠키 삭제
-    const cookies = ['company', 'id', 'name', 'dept', 'role', 'email'];
-    cookies.forEach(cookieName => {
-      document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-    });
-    
-    // localStorage 정리
-    safeLocalStorage.removeItem('userInfo');
-    
+  const handleLogout = async () => {
+    await signOut();
     toast({
       title: "로그아웃 완료",
       description: "안전하게 로그아웃되었습니다.",
     });
-    
-    // 로그인 페이지로 직접 이동
-          router.push('/');
+    router.push('/login');
   };
 
   return (
@@ -222,7 +172,7 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
             <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-full">
               <Settings className="h-4 w-4 text-gray-600" />
               <span className="text-sm font-medium text-gray-700">
-                {userRole === 'admin' ? "관리자" : "일반사용자"}
+                {userProfile?.role === 'admin' ? "관리자" : "일반사용자"}
               </span>
             </div>
           </div>
@@ -272,7 +222,7 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
           <DialogHeader>
             <DialogTitle className="text-orange-600">로그인된 사용자 정보 🎉</DialogTitle>
             <DialogDescription>
-              쿠키에서 읽어온 사용자 정보입니다.
+              Supabase Auth에서 가져온 사용자 정보입니다.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-80 overflow-y-auto p-4 bg-orange-50 rounded-md border border-orange-200">
@@ -280,33 +230,33 @@ export function AppSidebar({ activeTab, setActiveTab, isAdmin, setIsAdmin }: App
               <div className="flex flex-col">
                 <span className="font-semibold text-gray-700 mb-1">회사:</span>
                 <span className="text-gray-900 bg-white p-2 rounded border break-all">
-                  {userInfo?.company || 'N/A'}
+                  {userProfile?.company_name || 'N/A'}
                 </span>
               </div>
               <div className="flex flex-col">
                 <span className="font-semibold text-gray-700 mb-1">사번:</span>
                 <span className="text-gray-900 bg-white p-2 rounded border break-all">
-                  {userInfo?.id || 'N/A'}
+                  {userProfile?.employee_id || 'N/A'}
                 </span>
               </div>
               <div className="flex flex-col">
                 <span className="font-semibold text-gray-700 mb-1">이름:</span>
                 <span className="text-gray-900 bg-white p-2 rounded border break-all">
-                  {userInfo?.name || 'N/A'}
+                  {userProfile?.name || 'N/A'}
                 </span>
               </div>
               <div className="flex flex-col">
                 <span className="font-semibold text-gray-700 mb-1">부서:</span>
                 <span className="text-gray-900 bg-white p-2 rounded border break-all">
-                  {userInfo?.dept || 'N/A'}
+                  {userProfile?.dept || 'N/A'}
                 </span>
               </div>
               <div className="flex flex-col">
                 <span className="font-semibold text-gray-700 mb-1">권한:</span>
                 <span className={`font-semibold p-2 rounded border break-all ${
-                  userInfo?.role === '관리자' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'
+                  userProfile?.role === 'admin' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'
                 }`}>
-                  {userInfo?.role || 'N/A'}
+                  {userProfile?.role || 'N/A'}
                 </span>
               </div>
             </div>
