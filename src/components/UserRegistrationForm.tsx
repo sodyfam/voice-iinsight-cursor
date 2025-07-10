@@ -152,6 +152,7 @@ export const UserRegistrationForm = ({ onClose, onSuccess }: UserRegistrationFor
 
       // 사용자 데이터 준비
       const userData: any = {
+        id: formData.employeeId, // employee_id와 동일한 값으로 설정
         employee_id: formData.employeeId,
         name: formData.name,
         email: formData.email,
@@ -168,10 +169,13 @@ export const UserRegistrationForm = ({ onClose, onSuccess }: UserRegistrationFor
 
       let result;
       if (isExistingUser) {
-        // 기존 사용자 업데이트
+        // 기존 사용자 업데이트 - id는 변경하지 않음
+        const updateData = { ...userData };
+        delete updateData.id; // 기존 사용자 업데이트 시에는 id를 제외
+        
         const { data, error } = await supabase
           .from('users')
-          .update(userData)
+          .update(updateData)
           .eq('employee_id', formData.employeeId)
           .select();
 
@@ -181,10 +185,11 @@ export const UserRegistrationForm = ({ onClose, onSuccess }: UserRegistrationFor
           toast.success(`${formData.name}님의 정보가 성공적으로 업데이트되었습니다!`);
         }
       } else {
-        // 신규 사용자 등록 - id는 자동 생성되므로 제외
+        // 신규 사용자 등록 - id를 employee_id와 동일하게 설정
         userData.created_at = new Date().toISOString();
         
         console.log('💾 신규 사용자 데이터:', userData);
+        console.log('💾 설정된 ID:', userData.id);
         
         const { data, error } = await supabase
           .from('users')
